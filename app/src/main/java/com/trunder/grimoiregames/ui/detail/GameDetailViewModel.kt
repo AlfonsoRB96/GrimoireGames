@@ -36,14 +36,21 @@ class GameDetailViewModel @Inject constructor(
         }
     }
 
-    fun updateGameStats(currentGame: Game, newRating: Int, newHours: Int, newStatus: String) {
+    fun updateStatus(game: Game, newStatus: String) {
         viewModelScope.launch {
-            val updatedGame = currentGame.copy(
-                rating = newRating,
-                hoursPlayed = newHours,
-                status = newStatus
-            )
-            repository.updateGame(updatedGame)
+            repository.updateGame(game.copy(status = newStatus))
+        }
+    }
+
+    fun updateRating(game: Game, newRating: Int) {
+        viewModelScope.launch {
+            repository.updateGame(game.copy(rating = newRating))
+        }
+    }
+
+    fun updateHours(game: Game, newHours: Int) {
+        viewModelScope.launch {
+            repository.updateGame(game.copy(hoursPlayed = newHours))
         }
     }
 }
