@@ -28,21 +28,6 @@ class HomeViewModel @Inject constructor(
             initialValue = emptyList() // Estado inicial vacío
         )
 
-    // ACCIÓN: AÑADIR JUEGO
-    fun addGame(title: String, platform: String, status: String) {
-        // Lanzamos una Coroutine (Hilo secundario)
-        viewModelScope.launch {
-            val newGame = Game(
-                title = title,
-                platform = platform,
-                status = status
-            )
-            repository.addGame(newGame)
-            // ¡No hace falta hacer nada más!
-            // 'val games' detectará el cambio en la BBDD y avisará a la pantalla.
-        }
-    }
-
     // ACCIÓN: BORRAR JUEGO
     fun deleteGame(game: Game) {
         viewModelScope.launch {

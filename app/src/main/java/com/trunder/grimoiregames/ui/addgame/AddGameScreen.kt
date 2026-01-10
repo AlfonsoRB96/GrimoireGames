@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -56,24 +57,53 @@ fun AddGameScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             // 2. INDICADOR DE CARGA
-            if (viewModel.isLoading) {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
+            if (viewModel.errorMessage != null) {
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Warning,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Text(
+                            text = viewModel.errorMessage!!,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                }
             }
 
-            // 3. LISTA DE RESULTADOS
-            LazyColumn {
-                items(viewModel.searchResults) { gameDto ->
-                    ListItem(
-                        headlineContent = { Text(gameDto.name) },
-                        supportingContent = {
-                            Text("Lanzamiento: ${gameDto.releaseDate ?: "N/A"}")
-                        },
-                        modifier = Modifier.clickable {
-                            // EN LUGAR DE GUARDAR DIRECTAMENTE, ABRIMOS EL DIÁLOGO
-                            selectedGameForPlatformSelection = gameDto
-                        }
-                    )
-                    HorizontalDivider()
+            // 👇 QUE LA LISTA SOLO SALGA SI NO HAY ERROR
+            if (viewModel.isLoading) {
+                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            } else {
+                // 3. LISTA DE RESULTADOS
+                LazyColumn {
+                    items(viewModel.searchResults) { gameDto ->
+                        ListItem(
+                            headlineContent = { Text(gameDto.name) },
+                            supportingContent = {
+                                Text("Lanzamiento: ${gameDto.releaseDate ?: "N/A"}")
+                            },
+                            modifier = Modifier.clickable {
+                                // EN LUGAR DE GUARDAR DIRECTAMENTE, ABRIMOS EL DIÁLOGO
+                                selectedGameForPlatformSelection = gameDto
+                            }
+                        )
+                        HorizontalDivider()
+                    }
                 }
             }
         }

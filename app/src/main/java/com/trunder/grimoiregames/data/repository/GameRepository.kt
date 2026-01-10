@@ -1,6 +1,6 @@
 package com.trunder.grimoiregames.data.repository
 
-import com.trunder.grimoiregames.data.dao.GameDao
+import com.trunder.grimoiregames.data.dao.GameDao // Asegúrate de que este import es correcto (o .local.GameDao)
 import com.trunder.grimoiregames.data.entity.Game
 import com.trunder.grimoiregames.data.remote.RawgApi
 import com.trunder.grimoiregames.data.remote.dto.GameDto
@@ -10,7 +10,7 @@ import javax.inject.Inject
 
 class GameRepository @Inject constructor(
     private val gameDao: GameDao,
-    private val api: RawgApi // <--- ¡AQUÍ INYECTAMOS INTERNET!
+    private val api: RawgApi
 ) {
 
     // --- PARTE LOCAL (ROOM) ---
@@ -24,28 +24,53 @@ class GameRepository @Inject constructor(
         gameDao.deleteGame(game)
     }
 
-    // 👇 ¡AÑADE ESTO QUE ES LO QUE FALTA!
     suspend fun updateGame(game: Game) {
         gameDao.updateGame(game)
     }
 
-    // ¡NUEVO! 👇
     fun getGameById(id: Int): Flow<Game> {
         return gameDao.getGameById(id)
     }
 
     // --- PARTE REMOTA (INTERNET) ---
-    // Esta función busca juegos en RAWG
+
+    // 👇 AQUÍ ESTÁ EL CAMBIO CRÍTICO 👇
+    // Hemos quitado el try-catch. Ahora si falla, el ViewModel se entera.
     suspend fun searchGames(query: String): List<GameDto> {
-        return try {
-            val response = api.searchGames(
-                apiKey = Constants.API_KEY,
-                query = query
+        // Llamamos a la API directamente
+        val response = api.searchGames(
+            apiKey = Constants.API_KEY,
+            query = query // Usamos "query" (o "search" si tu interfaz lo pide así)
+        )
+        return response.results // Devolvemos la lista limpia
+    }
+
+    // Esta función la dejamos con try-catch porque corre en segundo plano
+    // y no queremos que moleste si falla al actualizar detalles.
+    suspend fun fetchAndSaveGameDetails(game: Game) {
+        try {
+            // Usamos rawgId si existe (asegúrate de que tu Entity Game tiene este campo)
+            val details = api.getGameDetails(
+                id = game.rawgId,
+                apiKey = Constants.API_KEY
             )
-            response.results // Devolvemos la lista limpia
+
+            // Creamos una copia del juego con los datos nuevos
+            val enrichedGame = game.copy(
+                description = details.description,
+                metacritic = details.metacritic,
+                releaseDate = details.released,
+                genre = details.genres?.joinToString(", ") { it.name },
+                developer = details.developers?.joinToString(", ") { it.name },
+                publisher = details.publishers?.joinToString(", ") { it.name }
+            )
+
+            // Guardamos en base de datos
+            gameDao.updateGame(enrichedGame)
+
         } catch (e: Exception) {
             e.printStackTrace()
-            emptyList() // Si falla, devolvemos lista vacía para no romper la app
+            // Si falla silenciosamente, no pasa nada, se queda con los datos básicos
         }
     }
 }

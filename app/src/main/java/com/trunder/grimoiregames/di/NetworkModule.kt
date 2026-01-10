@@ -6,6 +6,8 @@ import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import okhttp3.OkHttpClient
+import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import javax.inject.Singleton
@@ -14,20 +16,28 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
 
-    // 1. Proveemos la instancia de Retrofit (El Cliente HTTP)
+    // 1. Proveemos el cliente HTTP (Seguro, pero con Logs)
     @Provides
     @Singleton
-    fun provideRetrofit(): Retrofit {
-        return Retrofit.Builder()
-            .baseUrl(Constants.BASE_URL)
-            .addConverterFactory(GsonConverterFactory.create()) // Usamos Gson para traducir JSON
+    fun provideOkHttpClient(): OkHttpClient {
+        // El interceptor nos permite ver el JSON en el Logcat (útil para debug)
+        val logging = HttpLoggingInterceptor()
+        logging.setLevel(HttpLoggingInterceptor.Level.BODY)
+
+        return OkHttpClient.Builder()
+            .addInterceptor(logging)
             .build()
     }
 
-    // 2. Proveemos la API (La interfaz que creaste antes)
+    // 2. Proveemos la API usando Retrofit + Gson
     @Provides
     @Singleton
-    fun provideRawgApi(retrofit: Retrofit): RawgApi {
-        return retrofit.create(RawgApi::class.java)
+    fun provideRawgApi(okHttpClient: OkHttpClient): RawgApi {
+        return Retrofit.Builder()
+            .baseUrl(Constants.BASE_URL)
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(RawgApi::class.java)
     }
 }
