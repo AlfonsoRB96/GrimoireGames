@@ -24,6 +24,16 @@ class GameRepository @Inject constructor(
         gameDao.deleteGame(game)
     }
 
+    // 👇 ¡AÑADE ESTO QUE ES LO QUE FALTA!
+    suspend fun updateGame(game: Game) {
+        gameDao.updateGame(game)
+    }
+
+    // ¡NUEVO! 👇
+    fun getGameById(id: Int): Flow<Game> {
+        return gameDao.getGameById(id)
+    }
+
     // --- PARTE REMOTA (INTERNET) ---
     // Esta función busca juegos en RAWG
     suspend fun searchGames(query: String): List<GameDto> {

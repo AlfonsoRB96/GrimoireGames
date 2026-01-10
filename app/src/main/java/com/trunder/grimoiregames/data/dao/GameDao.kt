@@ -19,10 +19,6 @@ interface GameDao {
     @Query("SELECT * FROM games ORDER BY title ASC")
     fun getAllGames(): Flow<List<Game>>
 
-    // BUSCAR POR ID
-    @Query("SELECT * FROM games WHERE id = :id")
-    suspend fun getGameById(id: Int): Game?
-
     // INSERTAR O ACTUALIZAR (UPSERT)
     // onConflict = REPLACE: Si intentas meter un juego con el mismo ID, lo sobrescribe.
     // 'suspend' significa que esta función se ejecuta en segundo plano (Coroutines)
@@ -33,4 +29,12 @@ interface GameDao {
     // BORRAR
     @Delete
     suspend fun deleteGame(game: Game)
+
+    // ¡NUEVO! 👇 Observar un solo juego por su ID
+    @Query("SELECT * FROM games WHERE id = :id")
+    fun getGameById(id: Int): Flow<Game>
+
+    // ¡NUEVO! 👇 Para guardar los cambios de nota y horas
+    @Update
+    suspend fun updateGame(game: Game)
 }

@@ -1,5 +1,6 @@
 package com.trunder.grimoiregames.ui.home
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -29,6 +30,7 @@ import com.trunder.grimoiregames.data.entity.Game
 @Composable
 fun HomeScreen(
     onAddGameClick: () -> Unit,
+    onGameClick: (Int) -> Unit,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val games by viewModel.games.collectAsState()
@@ -65,6 +67,7 @@ fun HomeScreen(
                 items(games) { game ->
                     GameItem(
                         game = game,
+                        onClick = { onGameClick(game.id) },
                         onDeleteClick = { viewModel.deleteGame(game) }
                     )
                 }
@@ -75,11 +78,14 @@ fun HomeScreen(
 
 // --- AQUÍ ESTÁ LA MAGIA VISUAL ---
 @Composable
-fun GameItem(game: Game, onDeleteClick: () -> Unit) {
+fun GameItem(game: Game, onClick: () -> Unit, onDeleteClick: () -> Unit) {
     Card(
         elevation = CardDefaults.cardElevation(defaultElevation = 6.dp), // Un poco más de elevación
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), // Color base más limpio
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 4.dp)
+            .clickable { onClick() }
     ) {
         Row(
             modifier = Modifier
