@@ -50,9 +50,9 @@ class AddGameViewModel @Inject constructor(
         viewModelScope.launch {
             val newGame = Game(
                 title = dto.name,
-                platform = selectedPlatform, // <--- ¡USAMOS LA REAL!
-                status = "Backlog"
-                // (Más adelante añadiremos la imagen aquí)
+                platform = selectedPlatform,
+                status = "Backlog",
+                imageUrl = dto.backgroundImage
             )
             repository.addGame(newGame)
         }

@@ -80,4 +80,10 @@ dependencies {
     implementation("com.squareup.retrofit2:converter-gson:2.9.0")
     // OkHttp
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+
+    // --- IMÁGENES (COIL) ---
+    implementation("io.coil-kt:coil-compose:2.7.0")
+
+    // --- ICONOS EXTENDIDOS (Para tener Star, DateRange, etc.) ---
+    implementation("androidx.compose.material:material-icons-extended:1.7.6")
 }

@@ -3,30 +3,34 @@ package com.trunder.grimoiregames.ui.home
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Add
 import androidx.hilt.navigation.compose.hiltViewModel
+import coil.compose.AsyncImage
 import com.trunder.grimoiregames.data.entity.Game
 
-// @Composable: Esto es una función que DIBUJA UI.
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
-    // hiltViewModel(): ¡Magia! Hilt busca el ViewModel que creamos y lo inyecta aquí.
     onAddGameClick: () -> Unit,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
-    // ESTADO: Observamos la lista de juegos.
-    // collectAsState: Convierte el flujo de datos en un estado que Compose entiende.
-    // Si la lista cambia en la BBDD, esta variable cambia y la pantalla se redibuja sola.
     val games by viewModel.games.collectAsState()
 
     Scaffold(
@@ -40,14 +44,12 @@ fun HomeScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = onAddGameClick) { // <--- USAMOS LA NAVEGACIÓN
+            FloatingActionButton(onClick = onAddGameClick) {
                 Icon(Icons.Default.Add, contentDescription = "Añadir Juego")
             }
         }
     ) { innerPadding ->
-        // EL CUERPO DE LA PANTALLA
         if (games.isEmpty()) {
-            // Estado Vacío
             Box(
                 modifier = Modifier.fillMaxSize().padding(innerPadding),
                 contentAlignment = Alignment.Center
@@ -55,7 +57,6 @@ fun HomeScreen(
                 Text("Tu Grimorio está vacío... ¡Añade loot!")
             }
         } else {
-            // Lista de Juegos (Como un RecyclerView pero en 3 líneas)
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(innerPadding),
                 contentPadding = PaddingValues(16.dp),
@@ -72,37 +73,108 @@ fun HomeScreen(
     }
 }
 
-// COMPONENTE: CARTA DE JUEGO INDIVIDUAL
+// --- AQUÍ ESTÁ LA MAGIA VISUAL ---
 @Composable
 fun GameItem(game: Game, onDeleteClick: () -> Unit) {
     Card(
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp), // Un poco más de elevación
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), // Color base más limpio
+        modifier = Modifier.fillMaxWidth()
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+                .height(IntrinsicSize.Min) // Truco: La fila se ajusta a la altura del elemento más alto (la imagen)
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = game.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
+
+            // 1. IMAGEN (FORMATO PÓSTER) 🖼️
+            AsyncImage(
+                model = game.imageUrl,
+                contentDescription = "Carátula de ${game.title}",
+                modifier = Modifier
+                    .width(100.dp) // Ancho fijo
+                    .fillMaxHeight(), // ¡Ocupa toda la altura de la tarjeta!
+                contentScale = ContentScale.Crop // Recorta lo que sobre para llenar el rectángulo
+            )
+
+            // 2. COLUMNA DE DATOS 📝
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(12.dp) // Padding interno del texto
+            ) {
+                // Título y Botón Borrar (En una fila para que el botón quede a la derecha)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Text(
+                        text = game.title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f), // El título ocupa lo que pueda
+                        maxLines = 2 // Permitimos 2 líneas para títulos largos
+                    )
+
+                    // Botón Borrar (Pequeño y discreto)
+                    IconButton(
+                        onClick = onDeleteClick,
+                        modifier = Modifier.size(24.dp) // Más pequeño
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Borrar",
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Plataforma y Estado (Chips o Texto coloreado)
                 Text(
                     text = "${game.platform} • ${game.status}",
-                    style = MaterialTheme.typography.bodyMedium
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary
                 )
-            }
-            IconButton(onClick = onDeleteClick) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = "Borrar",
-                    tint = Color.Red
-                )
+
+                Spacer(modifier = Modifier.weight(1f)) // Empuja lo siguiente hacia abajo
+
+                // 3. ESTADÍSTICAS (Rating y Horas) 📊
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Rating
+                    Icon(
+                        imageVector = Icons.Filled.Star,
+                        contentDescription = "Rating",
+                        tint = Color(0xFFFFB300), // Color Dorado/Amarillo
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        // Si es null mostramos "-", si tiene nota la mostramos
+                        text = game.rating?.toString() ?: "-",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Spacer(modifier = Modifier.width(16.dp)) // Separador
+
+                    // Horas Jugadas
+                    Icon(
+                        imageVector = Icons.Filled.DateRange, // O un icono de reloj
+                        contentDescription = "Horas",
+                        tint = Color.Gray,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "${game.hoursPlayed} h",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
             }
         }
     }

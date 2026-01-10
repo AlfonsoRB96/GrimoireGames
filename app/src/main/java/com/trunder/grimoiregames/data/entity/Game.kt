@@ -11,5 +11,6 @@ data class Game(
     val platform: String, // PC, PS5, Switch...
     val status: String,   // Playing, Completed, Backlog...
     val rating: Int? = null, // 1-10, opcional
-    val hoursPlayed: Int = 0
+    val hoursPlayed: Int = 0,
+    val imageUrl: String? = null
 )
