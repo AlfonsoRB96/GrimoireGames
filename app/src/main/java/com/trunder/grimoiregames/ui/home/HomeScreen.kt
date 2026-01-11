@@ -5,12 +5,14 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -24,6 +26,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.trunder.grimoiregames.data.entity.Game
 import androidx.compose.material.icons.filled.*
+import androidx.compose.ui.text.font.FontWeight
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -33,6 +36,8 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val games by viewModel.games.collectAsState()
+    val currentSort by viewModel.sortOption.collectAsState()
+    var showMenu by remember { mutableStateOf(false) }
     // Estado para guardar el juego que se ha pulsado prolongadamente
     var gameToDelete by remember { mutableStateOf<Game?>(null) }
 
@@ -62,6 +67,59 @@ fun HomeScreen(
         topBar = {
             TopAppBar(
                 title = { Text("Grimoire Games") },
+                actions = {
+                    // BOTÓN DE ORDENAR
+                    Box {
+                        IconButton(onClick = { showMenu = true }) {
+                            Icon(Icons.Default.Sort, contentDescription = "Ordenar")
+                        }
+
+                        // EL MENÚ DESPLEGABLE
+                        DropdownMenu(
+                            expanded = showMenu,
+                            onDismissRequest = { showMenu = false }
+                        ) {
+                            // Opción 1: Alfabético
+                            DropdownMenuItem(
+                                text = { Text("Alfabético (A-Z)") },
+                                onClick = {
+                                    viewModel.onSortChange(SortOption.TITLE)
+                                    showMenu = false
+                                },
+                                leadingIcon = {
+                                    if (currentSort == SortOption.TITLE)
+                                        Icon(Icons.Default.Check, null)
+                                }
+                            )
+
+                            // Opción 2: Por Plataforma
+                            DropdownMenuItem(
+                                text = { Text("Por Plataforma") },
+                                onClick = {
+                                    viewModel.onSortChange(SortOption.PLATFORM)
+                                    showMenu = false
+                                },
+                                leadingIcon = {
+                                    if (currentSort == SortOption.PLATFORM)
+                                        Icon(Icons.Default.Check, null)
+                                }
+                            )
+
+                            // Opción 3: Por Estado
+                            DropdownMenuItem(
+                                text = { Text("Por Estado") },
+                                onClick = {
+                                    viewModel.onSortChange(SortOption.STATUS)
+                                    showMenu = false
+                                },
+                                leadingIcon = {
+                                    if (currentSort == SortOption.STATUS)
+                                        Icon(Icons.Default.Check, null)
+                                }
+                            )
+                        }
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                     titleContentColor = MaterialTheme.colorScheme.primary
@@ -90,15 +148,34 @@ fun HomeScreen(
                     start = 12.dp,
                     end = 12.dp
                 ),
-                modifier = Modifier
-                    .fillMaxSize()
+                modifier = Modifier.fillMaxSize()
             ) {
-                items(games) { game ->
-                    GameCard(
-                        game = game,
-                        onClick = { onGameClick(game.id) },
-                        onLongClick = { gameToDelete = game }
-                    )
+                // Iteramos sobre el Mapa (Cabecera -> ListaDeJuegos)
+                games.forEach { (headerTitle, gamesInGroup) ->
+
+                    // 1. LA CABECERA (Ocupa 2 espacios, ancho completo)
+                    item(
+                        span = { GridItemSpan(2) } // 👈 Esto hace que ocupe todo el ancho
+                    ) {
+                        Text(
+                            text = headerTitle,
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier
+                                .padding(top = 24.dp, bottom = 8.dp, start = 4.dp)
+                                .fillMaxWidth()
+                        )
+                    }
+
+                    // 2. LOS JUEGOS DE ESE GRUPO
+                    items(gamesInGroup) { game ->
+                        GameCard(
+                            game = game,
+                            onClick = { onGameClick(game.id) },
+                            onLongClick = { gameToDelete = game }
+                        )
+                    }
                 }
             }
         }
