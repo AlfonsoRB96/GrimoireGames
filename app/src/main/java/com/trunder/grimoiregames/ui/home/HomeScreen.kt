@@ -11,8 +11,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Sort
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,7 +24,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.trunder.grimoiregames.data.entity.Game
-import androidx.compose.material.icons.filled.*
 import androidx.compose.ui.text.font.FontWeight
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -35,13 +33,17 @@ fun HomeScreen(
     onGameClick: (Int) -> Unit,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
+    // ESTADOS DE DATOS
     val games by viewModel.games.collectAsState()
     val currentSort by viewModel.sortOption.collectAsState()
-    var showMenu by remember { mutableStateOf(false) }
-    // Estado para guardar el juego que se ha pulsado prolongadamente
-    var gameToDelete by remember { mutableStateOf<Game?>(null) }
+    val searchText by viewModel.searchText.collectAsState() // 👈 Nuevo: Texto de búsqueda
 
-    // Lógica del Diálogo de Confirmación
+    // ESTADOS DE UI
+    var showMenu by remember { mutableStateOf(false) }
+    var gameToDelete by remember { mutableStateOf<Game?>(null) }
+    var isSearching by remember { mutableStateOf(false) } // 👈 Nuevo: Controla si se ve la barra
+
+    // Lógica del Diálogo de Confirmación (Borrado)
     if (gameToDelete != null) {
         AlertDialog(
             onDismissRequest = { gameToDelete = null },
@@ -66,15 +68,47 @@ fun HomeScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Grimoire Games") },
+                title = {
+                    // 👇 LÓGICA DINÁMICA: Título vs Barra de Búsqueda
+                    if (isSearching) {
+                        TextField(
+                            value = searchText,
+                            onValueChange = viewModel::onSearchTextChange,
+                            placeholder = { Text("Buscar juego...") },
+                            singleLine = true,
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = Color.Transparent,
+                                unfocusedContainerColor = Color.Transparent,
+                                focusedIndicatorColor = Color.Transparent,
+                                unfocusedIndicatorColor = Color.Transparent
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    } else {
+                        Text("Grimoire Games")
+                    }
+                },
                 actions = {
-                    // BOTÓN DE ORDENAR
+                    // 👇 BOTÓN DE BÚSQUEDA (LUPA / CERRAR)
+                    if (isSearching) {
+                        IconButton(onClick = {
+                            isSearching = false
+                            viewModel.onSearchTextChange("") // Limpiamos al cerrar
+                        }) {
+                            Icon(Icons.Default.Close, contentDescription = "Cerrar búsqueda")
+                        }
+                    } else {
+                        IconButton(onClick = { isSearching = true }) {
+                            Icon(Icons.Default.Search, contentDescription = "Buscar")
+                        }
+                    }
+
+                    // 👇 BOTÓN DE ORDENAR (Menú Desplegable)
                     Box {
                         IconButton(onClick = { showMenu = true }) {
                             Icon(Icons.Default.Sort, contentDescription = "Ordenar")
                         }
 
-                        // EL MENÚ DESPLEGABLE
                         DropdownMenu(
                             expanded = showMenu,
                             onDismissRequest = { showMenu = false }
@@ -137,7 +171,12 @@ fun HomeScreen(
                 modifier = Modifier.fillMaxSize().padding(innerPadding),
                 contentAlignment = Alignment.Center
             ) {
-                Text("Tu Grimorio está vacío... ¡Añade loot!")
+                // Mensaje diferente si es por búsqueda vacía o colección vacía
+                if (searchText.isNotEmpty()) {
+                    Text("No se encontraron juegos con '$searchText'")
+                } else {
+                    Text("Tu Grimorio está vacío... ¡Añade loot!")
+                }
             }
         } else {
             LazyVerticalGrid(
@@ -155,7 +194,7 @@ fun HomeScreen(
 
                     // 1. LA CABECERA (Ocupa 2 espacios, ancho completo)
                     item(
-                        span = { GridItemSpan(2) } // 👈 Esto hace que ocupe todo el ancho
+                        span = { GridItemSpan(2) }
                     ) {
                         Text(
                             text = headerTitle,
@@ -187,7 +226,7 @@ fun HomeScreen(
 fun GameCard(
     game: Game,
     onClick: () -> Unit,
-    onLongClick: () -> Unit // 👈 Nueva acción
+    onLongClick: () -> Unit
 ) {
 
     val (platformIcon, platformColor) = when {
