@@ -229,39 +229,37 @@ fun InfoItem(label: String, value: String, isBadge: Boolean = false) {
 
 @Composable
 fun AgeRatingBadge(game: Game) {
-    // 1. Intentamos coger el PEGI real. Si es nulo, cogemos el ESRB.
-    val rawRating = game.pegi ?: game.esrb
+    // Recuperamos el dato real tal cual viene de la BD / RAWG
+    val ratingText = game.pegi ?: game.esrb
 
-    if (rawRating != null) {
-        // 2. LÓGICA DE TRADUCCIÓN (De ESRB Americano a Estilo PEGI Europeo)
-        val (displayText, color) = when {
-            // --- VERDE (Niños) ---
-            // ESRB "Everyone" es como PEGI 3 o 7
-            rawRating.contains("Everyone", ignoreCase = true) || rawRating.contains("3") ->
-                "PEGI 3" to Color(0xFF4CAF50) // Verde
+    if (ratingText != null) {
+        val color = when {
+            // --- VERDE (Apto para todos) ---
+            // PEGI 3 / ESRB Everyone
+            ratingText.contains("3") || ratingText.contains("Everyone", ignoreCase = true) ->
+                Color(0xFF4CAF50)
 
-            // --- AMARILLO/NARANJA (Adolescentes) ---
-            // ESRB "Everyone 10+" es como PEGI 7 o 12
-            rawRating.contains("10+", ignoreCase = true) || rawRating.contains("7") ->
-                "PEGI 7" to Color(0xFFFFC107) // Amarillo
+            // --- AMARILLO (Mayores de 7/10) ---
+            // PEGI 7 / ESRB Everyone 10+
+            ratingText.contains("7") || ratingText.contains("10") ->
+                Color(0xFFFFC107)
 
-            // ESRB "Teen" es casi idéntico a PEGI 12
-            rawRating.contains("Teen", ignoreCase = true) || rawRating.contains("12") ->
-                "PEGI 12" to Color(0xFFFF9800) // Naranja
+            // --- NARANJA (Adolescentes) ---
+            // PEGI 12 / ESRB Teen
+            ratingText.contains("12") || ratingText.contains("Teen", ignoreCase = true) ->
+                Color(0xFFFF9800)
 
-            // --- ROJO (Adultos) ---
-            // ESRB "Mature" es PEGI 16 o 18 (Suele ser 16/18 dependiendo del juego)
-            // Lo mapeamos a 16 o 18 según prefieras. Mature suele ser +17 en USA.
-            rawRating.contains("Mature", ignoreCase = true) || rawRating.contains("16") ->
-                "PEGI 16" to Color(0xFFF44336) // Rojo
+            // --- ROJO (Maduro) ---
+            // PEGI 16 / ESRB Mature
+            ratingText.contains("16") || ratingText.contains("Mature", ignoreCase = true) ->
+                Color(0xFFF44336)
 
-            // --- NEGRO (Adultos estricto) ---
-            // ESRB "Adults Only" es PEGI 18
-            rawRating.contains("Adults Only", ignoreCase = true) || rawRating.contains("18") ->
-                "PEGI 18" to Color(0xFFD32F2F) // Rojo Oscuro / Negro
+            // --- NEGRO (Adultos) ---
+            // PEGI 18 / ESRB Adults Only
+            ratingText.contains("18") || ratingText.contains("Adults", ignoreCase = true) ->
+                Color.Black
 
-            // --- CASO DESCONOCIDO (Mostramos el texto tal cual llega) ---
-            else -> rawRating to Color.Gray
+            else -> Color.Gray
         }
 
         Surface(
@@ -270,7 +268,7 @@ fun AgeRatingBadge(game: Game) {
             modifier = Modifier.padding(start = 8.dp)
         ) {
             Text(
-                text = displayText,
+                text = ratingText, // 👈 Mostramos el texto REAL (Ej: "Mature")
                 color = Color.White,
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.Bold,

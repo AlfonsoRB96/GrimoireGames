@@ -269,16 +269,40 @@ fun HomeScreen(
             }
         } else {
             LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
-                contentPadding = PaddingValues(top = innerPadding.calculateTopPadding() + 16.dp, bottom = innerPadding.calculateBottomPadding() + 80.dp, start = 12.dp, end = 12.dp),
+                columns = GridCells.Fixed(3), // 👈 AHORA SON 3 COLUMNAS
+                contentPadding = PaddingValues(
+                    top = innerPadding.calculateTopPadding() + 16.dp,
+                    bottom = innerPadding.calculateBottomPadding() + 80.dp,
+                    start = 8.dp, // Reducimos un poco los márgenes laterales (antes 12)
+                    end = 8.dp
+                ),
                 modifier = Modifier.fillMaxSize()
             ) {
-                games.forEach { (header, group) ->
-                    item(span = { GridItemSpan(2) }) {
-                        Text(header, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 24.dp, bottom = 8.dp, start = 4.dp))
+                games.forEach { (headerTitle, gamesInGroup) ->
+
+                    // 1. LA CABECERA (IMPORTANTE: GridItemSpan(3))
+                    // Esto asegura que el título ocupe TODO el ancho y no deje huecos
+                    item(
+                        span = { GridItemSpan(3) } // 👈 ¡ESTO ARREGLA EL DESAJUSTE!
+                    ) {
+                        Text(
+                            text = headerTitle,
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier
+                                .padding(top = 24.dp, bottom = 8.dp, start = 8.dp) // Alineado con las cartas
+                                .fillMaxWidth()
+                        )
                     }
-                    items(group) { game ->
-                        GameCard(game = game, onClick = { onGameClick(game.id) }, onLongClick = { gameToDelete = game })
+
+                    // 2. LOS JUEGOS
+                    items(gamesInGroup) { game ->
+                        GameCard(
+                            game = game,
+                            onClick = { onGameClick(game.id) },
+                            onLongClick = { gameToDelete = game }
+                        )
                     }
                 }
             }
@@ -286,33 +310,120 @@ fun HomeScreen(
     }
 }
 
-// GameCard se mantiene idéntico al anterior.
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun GameCard(game: Game, onClick: () -> Unit, onLongClick: () -> Unit) {
-    // ... Tu código de GameCard existente ...
-    // Para simplificar la respuesta, usa el mismo bloque GameCard que ya tenías funcionando perfecto.
+fun GameCard(
+    game: Game,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit
+) {
     val (platformIcon, platformColor) = when {
         game.platform.contains("Switch", true) -> Icons.Default.Gamepad to Color(0xFFE60012)
         game.platform.contains("GameCube", true) -> Icons.Default.Apps to Color(0xFF6A5ACD)
+        game.platform.contains("Wii", true) -> Icons.Default.SportsEsports to Color(0xFF8DE3F5)
         game.platform.contains("PlayStation", true) -> Icons.Default.VideogameAsset to Color(0xFF003791)
         game.platform.contains("PC", true) -> Icons.Default.Computer to Color(0xFF4B4B4B)
         game.platform.contains("Xbox", true) -> Icons.Default.SportsEsports to Color(0xFF107C10)
         else -> Icons.Default.Games to Color.Black
     }
 
-    Card(modifier = Modifier.padding(8.dp).fillMaxWidth().height(220.dp).combinedClickable(onClick = onClick, onLongClick = onLongClick), shape = RoundedCornerShape(12.dp), elevation = CardDefaults.cardElevation(4.dp)) {
+    Card(
+        modifier = Modifier
+            .padding(4.dp)
+            .fillMaxWidth()
+            .aspectRatio(1f) // Cuadrada
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            ),
+        shape = RoundedCornerShape(8.dp),
+        elevation = CardDefaults.cardElevation(3.dp)
+    ) {
         Box {
-            AsyncImage(model = game.imageUrl, contentDescription = game.title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-            Row(modifier = Modifier.fillMaxWidth().padding(8.dp).align(Alignment.TopCenter), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                Surface(color = platformColor.copy(0.9f), shape = CircleShape, modifier = Modifier.size(26.dp)) { Icon(platformIcon, null, tint = Color.White, modifier = Modifier.padding(6.dp)) }
-                Surface(color = when(game.status) { "Playing" -> Color(0xFFFFD600); "Completed" -> Color(0xFF4CAF50); else -> Color.DarkGray }, shape = RoundedCornerShape(4.dp)) {
-                    Text(game.status, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), style = MaterialTheme.typography.labelSmall, color = if (game.status == "Playing") Color.Black else Color.White)
+            // 1. Imagen de fondo
+            AsyncImage(
+                model = game.imageUrl,
+                contentDescription = game.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+
+            // 2. Iconos superiores (Igual que antes)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(6.dp)
+                    .align(Alignment.TopCenter),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                // Icono Consola
+                Surface(
+                    color = platformColor.copy(alpha = 0.9f),
+                    shape = CircleShape,
+                    modifier = Modifier.size(24.dp)
+                ) {
+                    Icon(
+                        imageVector = platformIcon,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.padding(5.dp)
+                    )
+                }
+                // Etiqueta Estado (Abreviada)
+                Surface(
+                    color = when(game.status) {
+                        "Playing" -> Color(0xFFFFD600)
+                        "Completed" -> Color(0xFF4CAF50)
+                        else -> Color.DarkGray
+                    },
+                    shape = RoundedCornerShape(4.dp)
+                ) {
+                    val statusText = when(game.status) {
+                        "Playing" -> "P"
+                        "Completed" -> "C"
+                        else -> "B"
+                    }
+                    Text(
+                        text = statusText,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = if (game.status == "Playing") Color.Black else Color.White
+                    )
                 }
             }
-            Box(modifier = Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(0.8f)), startY = 300f))) {
-                Text(game.title, modifier = Modifier.align(Alignment.BottomStart).padding(12.dp), style = MaterialTheme.typography.titleMedium, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            }
+
+            // 👇 3. LA SOMBRA (Degradado inferior)
+            // Esta caja crea la "magia". Solo ocupa la parte baja y tiene un degradado suave.
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(80.dp) // Altura fija para que no tape toda la imagen, solo lo necesario para 2 líneas de texto
+                    .align(Alignment.BottomCenter)
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Transparent, // Empieza transparente arriba
+                                Color.Black.copy(alpha = 0.7f) // Termina en negro al 70% abajo del todo
+                            )
+                        )
+                    )
+            )
+
+            // 👇 4. EL TÍTULO (Encima de la sombra)
+            Text(
+                text = game.title,
+                modifier = Modifier
+                    .align(Alignment.BottomStart) // Alineado abajo a la izquierda
+                    .padding(horizontal = 8.dp, vertical = 8.dp) // Separación del borde
+                    .fillMaxWidth(),
+                style = MaterialTheme.typography.labelLarge,
+                color = Color.White,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Start // Alineado a la izquierda queda más natural con sombra
+            )
         }
     }
 }
