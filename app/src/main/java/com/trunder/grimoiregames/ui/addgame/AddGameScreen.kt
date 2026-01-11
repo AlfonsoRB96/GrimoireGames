@@ -14,7 +14,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.trunder.grimoiregames.data.remote.dto.GameDto
+import com.trunder.grimoiregames.data.remote.dto.IgdbGameDto // 👈 IMPORTANTE
+import java.text.SimpleDateFormat
+import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -23,13 +25,13 @@ fun AddGameScreen(
     onGameSaved: () -> Unit,
     viewModel: AddGameViewModel = hiltViewModel()
 ) {
-    // ESTADO LOCAL: ¿Qué juego hemos pulsado para elegir plataforma?
-    var selectedGameForPlatformSelection by remember { mutableStateOf<GameDto?>(null) }
+    // ESTADO LOCAL: Ahora usa IgdbGameDto
+    var selectedGameForPlatformSelection by remember { mutableStateOf<IgdbGameDto?>(null) }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Añadir Juego") },
+                title = { Text("Añadir Juego (IGDB)") },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Volver")
@@ -40,7 +42,7 @@ fun AddGameScreen(
     ) { padding ->
         Column(
             modifier = Modifier
-                .fillMaxSize() // Asegura que ocupe toda la pantalla
+                .fillMaxSize()
                 .padding(padding)
                 .padding(16.dp)
         ) {
@@ -48,7 +50,7 @@ fun AddGameScreen(
             OutlinedTextField(
                 value = viewModel.query,
                 onValueChange = { viewModel.onQueryChange(it) },
-                label = { Text("Buscar en RAWG...") },
+                label = { Text("Buscar videojuego...") },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true
@@ -56,7 +58,7 @@ fun AddGameScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 2. INDICADOR DE CARGA
+            // 2. INDICADOR DE ERROR
             if (viewModel.errorMessage != null) {
                 Card(
                     colors = CardDefaults.cardColors(
@@ -83,22 +85,29 @@ fun AddGameScreen(
                 }
             }
 
-            // 👇 QUE LA LISTA SOLO SALGA SI NO HAY ERROR
+            // 3. LISTA DE RESULTADOS
             if (viewModel.isLoading) {
                 Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
                 }
             } else {
-                // 3. LISTA DE RESULTADOS
                 LazyColumn {
                     items(viewModel.searchResults) { gameDto ->
+
+                        // 👇 LÓGICA DE FECHA (Timestamp -> Año)
+                        val releaseYear = remember(gameDto.firstReleaseDate) {
+                            gameDto.firstReleaseDate?.let { timestamp ->
+                                val date = Date(timestamp * 1000)
+                                SimpleDateFormat("yyyy", Locale.getDefault()).format(date)
+                            } ?: "TBA"
+                        }
+
                         ListItem(
                             headlineContent = { Text(gameDto.name) },
                             supportingContent = {
-                                Text("Lanzamiento: ${gameDto.releaseDate ?: "N/A"}")
+                                Text("Lanzamiento: $releaseYear")
                             },
                             modifier = Modifier.clickable {
-                                // EN LUGAR DE GUARDAR DIRECTAMENTE, ABRIMOS EL DIÁLOGO
                                 selectedGameForPlatformSelection = gameDto
                             }
                         )
@@ -108,13 +117,13 @@ fun AddGameScreen(
             }
         }
 
-        // --- EL DIÁLOGO DE SELECCIÓN DE PLATAFORMA ---
+        // --- DIÁLOGO DE SELECCIÓN DE PLATAFORMA ---
         if (selectedGameForPlatformSelection != null) {
             val game = selectedGameForPlatformSelection!!
 
-            // Extraemos los nombres de las plataformas de la estructura rara de RAWG
-            // Si viene null o vacío, ponemos "PC" por defecto
-            val platforms = game.platforms?.map { it.platform.name } ?: listOf("PC", "Console")
+            // 👇 LÓGICA DE PLATAFORMAS DE IGDB
+            // IGDB devuelve una lista plana: platforms[].name
+            val platforms = game.platforms?.map { it.name } ?: listOf("Plataforma desconocida")
 
             AlertDialog(
                 onDismissRequest = { selectedGameForPlatformSelection = null },
@@ -123,13 +132,22 @@ fun AddGameScreen(
                     Column {
                         Text("¿Dónde vas a jugar a ${game.name}?")
                         Spacer(modifier = Modifier.height(10.dp))
-                        // Lista de botones para cada plataforma
+
+                        // Lista de botones
                         platforms.forEach { platformName ->
                             Button(
                                 onClick = {
-                                    viewModel.onGameSelected(game, platformName)
-                                    selectedGameForPlatformSelection = null // Cerramos diálogo
-                                    onGameSaved() // Volvemos atrás
+                                    // 👇 CAMBIO IMPORTANTE
+                                    // Le pasamos el juego, la plataforma Y LO QUE TIENE QUE HACER AL ACABAR
+                                    viewModel.onGameSelected(
+                                        dto = game,
+                                        selectedPlatform = platformName,
+                                        onSuccess = {
+                                            // Esto se ejecutará SOLO cuando el ViewModel diga "Ya he acabado"
+                                            selectedGameForPlatformSelection = null
+                                            onGameSaved() // Volvemos atrás
+                                        }
+                                    )
                                 },
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -140,7 +158,7 @@ fun AddGameScreen(
                         }
                     }
                 },
-                confirmButton = {}, // No necesitamos botón genérico
+                confirmButton = {},
                 dismissButton = {
                     TextButton(onClick = { selectedGameForPlatformSelection = null }) {
                         Text("Cancelar")

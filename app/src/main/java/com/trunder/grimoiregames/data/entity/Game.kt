@@ -5,7 +5,9 @@ import androidx.room.PrimaryKey
 
 @Entity(tableName = "games")
 data class Game(
-    @PrimaryKey(autoGenerate = true) val id: Int = 0, // ID Local de Room
+    @PrimaryKey(autoGenerate = true)
+    val id: Int = 0, // ID Local de Room
+
     val rawgId: Int, // ¡NUEVO! Guardamos el ID de RAWG para poder refrescar datos en el futuro
 
     val title: String,

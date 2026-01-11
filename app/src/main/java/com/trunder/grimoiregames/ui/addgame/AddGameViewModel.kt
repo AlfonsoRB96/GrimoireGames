@@ -6,7 +6,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.trunder.grimoiregames.data.entity.Game
-import com.trunder.grimoiregames.data.remote.dto.GameDto
+import com.trunder.grimoiregames.data.remote.dto.IgdbGameDto // 👈 CAMBIO A IGDB
 import com.trunder.grimoiregames.data.repository.GameRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
@@ -22,7 +22,8 @@ class AddGameViewModel @Inject constructor(
     var query by mutableStateOf("")
         private set
 
-    var searchResults by mutableStateOf<List<GameDto>>(emptyList())
+    // 👇 AHORA LA LISTA ES DE IGDB
+    var searchResults by mutableStateOf<List<IgdbGameDto>>(emptyList())
         private set
 
     var isLoading by mutableStateOf(false)
@@ -37,33 +38,33 @@ class AddGameViewModel @Inject constructor(
         query = newQuery
         searchJob?.cancel()
         searchJob = viewModelScope.launch {
-            delay(500L)
+            delay(800L) // Un poco más de delay para no saturar a IGDB mientras escribes
 
             if (query.isNotEmpty()) {
                 isLoading = true
-                errorMessage = null // Limpiamos errores previos
+                errorMessage = null
 
                 try {
+                    // El repository ya se encarga de la magia de IGDB
                     val result = repository.searchGames(query)
                     searchResults = result
 
                 } catch (e: Exception) {
                     e.printStackTrace()
-                    searchResults = emptyList() // Limpiamos la lista para que no se mezcle
+                    searchResults = emptyList()
 
                     val errorTexto = e.toString().lowercase()
-
+                    // Mantenemos tus mensajes de error personalizados ;)
                     if (errorTexto.contains("json") || errorTexto.contains("malformed")) {
-                        errorMessage = "🚫 ¡Bloqueo detectado (HTML)!\nTu operador bloquea la conexión.\npor culpa del bloqueo de parte de Javier Tebas\ny la Liga de Fútbol Profesiona.\n"
-                    } else if (errorTexto.contains("ssl") || errorTexto.contains("certpath") || errorTexto.contains("handshake")) {
-                        errorMessage = "🔒 Error de Seguridad (SSL)\nTu operador impide la conexión segura\npor culpa del bloqueo de parte de Javier Tebas\ny la Liga de Fútbol Profesiona.\nUsa VPN."
+                        errorMessage = "🚫 ¡Bloqueo detectado!\nTu operador bloquea la conexión.\npor culpa del bloqueo de Javier Tebas.\n"
+                    } else if (errorTexto.contains("ssl") || errorTexto.contains("certpath")) {
+                        errorMessage = "🔒 Error de Seguridad (SSL)\nBloqueo de operadora detectado.\nUsa VPN o Datos Móviles."
                     } else {
                         errorMessage = "⚠️ Error: ${e.localizedMessage}"
                     }
 
                 } finally {
                     isLoading = false
-                    // Confirmación final
                 }
             } else {
                 searchResults = emptyList()
@@ -73,16 +74,23 @@ class AddGameViewModel @Inject constructor(
         }
     }
 
-    fun onGameSelected(dto: GameDto, selectedPlatform: String) {
+    // 👇 AÑADIMOS UN PARAMETRO NUEVO: "onSuccess"
+    // Es una función que ejecutaremos SOLO cuando hayamos terminado de guardar.
+    fun onGameSelected(dto: IgdbGameDto, selectedPlatform: String, onSuccess: () -> Unit) {
         viewModelScope.launch {
-            val newGame = Game(
-                rawgId = dto.id,
-                title = dto.name,
-                platform = selectedPlatform,
-                status = "Backlog",
-                imageUrl = dto.backgroundImage
-            )
-            repository.addGame(newGame)
+            try {
+                // Hacemos el trabajo pesado
+                repository.addGame(dto.id, selectedPlatform)
+
+                // 👇 ¡AQUÍ ESTÁ LA MAGIA!
+                // Esperamos a que termine addGame y ENTONCES llamamos a onSuccess
+                onSuccess()
+
+            } catch (e: Exception) {
+                e.printStackTrace()
+                // Aquí podrías manejar un error, pero de momento con el log nos vale
+            }
         }
     }
+
 }
