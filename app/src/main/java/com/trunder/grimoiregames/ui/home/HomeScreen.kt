@@ -1,30 +1,29 @@
 package com.trunder.grimoiregames.ui.home
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Add
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.trunder.grimoiregames.data.entity.Game
+import androidx.compose.material.icons.filled.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -34,6 +33,30 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val games by viewModel.games.collectAsState()
+    // Estado para guardar el juego que se ha pulsado prolongadamente
+    var gameToDelete by remember { mutableStateOf<Game?>(null) }
+
+    // Lógica del Diálogo de Confirmación
+    if (gameToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { gameToDelete = null },
+            title = { Text("¿Eliminar juego?") },
+            text = { Text("¿Estás seguro de que quieres borrar '${gameToDelete?.title}' de tu biblioteca?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    gameToDelete?.let { viewModel.deleteGame(it) }
+                    gameToDelete = null
+                }) {
+                    Text("Eliminar", color = Color.Red)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { gameToDelete = null }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -59,16 +82,22 @@ fun HomeScreen(
                 Text("Tu Grimorio está vacío... ¡Añade loot!")
             }
         } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(innerPadding),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                contentPadding = PaddingValues(
+                    top = innerPadding.calculateTopPadding() + 16.dp,
+                    bottom = innerPadding.calculateBottomPadding() + 80.dp,
+                    start = 12.dp,
+                    end = 12.dp
+                ),
+                modifier = Modifier
+                    .fillMaxSize()
             ) {
                 items(games) { game ->
-                    GameItem(
+                    GameCard(
                         game = game,
                         onClick = { onGameClick(game.id) },
-                        onDeleteClick = { viewModel.deleteGame(game) }
+                        onLongClick = { gameToDelete = game }
                     )
                 }
             }
@@ -76,111 +105,119 @@ fun HomeScreen(
     }
 }
 
-// --- AQUÍ ESTÁ LA MAGIA VISUAL ---
+@OptIn(ExperimentalFoundationApi::class) // Necesario para combinedClickable
 @Composable
-fun GameItem(game: Game, onClick: () -> Unit, onDeleteClick: () -> Unit) {
-    Card(
-        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp), // Un poco más de elevación
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), // Color base más limpio
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 4.dp)
-            .clickable { onClick() }
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(IntrinsicSize.Min) // Truco: La fila se ajusta a la altura del elemento más alto (la imagen)
-        ) {
+fun GameCard(
+    game: Game,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit // 👈 Nueva acción
+) {
 
-            // 1. IMAGEN (FORMATO PÓSTER) 🖼️
+    val (platformIcon, platformColor) = when {
+        // FAMILIA NINTENDO (Rojo)
+        game.platform.contains("Switch", ignoreCase = true) ->
+            Icons.Default.Gamepad to Color(0xFFE60012)
+        game.platform.contains("GameCube", ignoreCase = true) ->
+            Icons.Default.Apps to Color(0xFF6A5ACD) // Morado GameCube
+        game.platform.contains("Wii", ignoreCase = true) ->
+            Icons.Default.SportsEsports to Color(0xFF8DE3F5)
+
+        // FAMILIA PLAYSTATION (Azul)
+        game.platform.contains("PlayStation 5", ignoreCase = true) ||
+                game.platform.contains("PlayStation 4", ignoreCase = true) ->
+            Icons.Default.VideogameAsset to Color(0xFF003791)
+        game.platform.contains("PlayStation 2", ignoreCase = true) ->
+            Icons.Default.SettingsInputComponent to Color(0xFF003791)
+
+        // PC Y OTROS (Gris/Verde)
+        game.platform.contains("PC", ignoreCase = true) ->
+            Icons.Default.Computer to Color(0xFF4B4B4B)
+        game.platform.contains("Xbox", ignoreCase = true) ->
+            Icons.Default.SportsEsports to Color(0xFF107C10)
+
+        else -> Icons.Default.Games to Color.Black
+    }
+
+    Card(
+        modifier = Modifier
+            .padding(8.dp)
+            .fillMaxWidth()
+            .height(220.dp)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            ),
+        shape = RoundedCornerShape(12.dp),
+        elevation = CardDefaults.cardElevation(4.dp)
+    ) {
+        Box {
+            // Imagen de la carátula
             AsyncImage(
                 model = game.imageUrl,
-                contentDescription = "Carátula de ${game.title}",
-                modifier = Modifier
-                    .width(100.dp) // Ancho fijo
-                    .fillMaxHeight(), // ¡Ocupa toda la altura de la tarjeta!
-                contentScale = ContentScale.Crop // Recorta lo que sobre para llenar el rectángulo
+                contentDescription = game.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
             )
 
-            // 2. COLUMNA DE DATOS 📝
-            Column(
+            Row(
                 modifier = Modifier
-                    .weight(1f)
-                    .padding(12.dp) // Padding interno del texto
+                    .fillMaxWidth() //
+                    .padding(8.dp)
+                    .align(Alignment.TopCenter),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                // Título y Botón Borrar (En una fila para que el botón quede a la derecha)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Top
+                // 1. ICONO DE LA CONSOLA (Esquina Izquierda)
+                Surface(
+                    color = platformColor.copy(alpha = 0.9f),
+                    shape = CircleShape,
+                    modifier = Modifier.size(26.dp)
+                ) {
+                    Icon(
+                        imageVector = platformIcon,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.padding(6.dp)
+                    )
+                }
+
+                // 2. ETIQUETA DE ESTADO (Esquina Derecha)
+                Surface(
+                    color = when(game.status) {
+                        "Playing" -> Color(0xFFFFD600)
+                        "Completed" -> Color(0xFF4CAF50)
+                        else -> Color.DarkGray
+                    },
+                    shape = RoundedCornerShape(4.dp)
                 ) {
                     Text(
-                        text = game.title,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.weight(1f), // El título ocupa lo que pueda
-                        maxLines = 2 // Permitimos 2 líneas para títulos largos
+                        text = game.status,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (game.status == "Playing") Color.Black else Color.White
                     )
+                }
+            }
 
-                    // Botón Borrar (Pequeño y discreto)
-                    IconButton(
-                        onClick = onDeleteClick,
-                        modifier = Modifier.size(24.dp) // Más pequeño
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = "Borrar",
-                            tint = MaterialTheme.colorScheme.error
+            // Título sobre fondo degradado
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f)),
+                            startY = 300f
                         )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Plataforma y Estado (Chips o Texto coloreado)
+                    )
+            ) {
                 Text(
-                    text = "${game.platform} • ${game.status}",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary
+                    text = game.title,
+                    modifier = Modifier.align(Alignment.BottomStart).padding(12.dp),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color.White,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
-
-                Spacer(modifier = Modifier.weight(1f)) // Empuja lo siguiente hacia abajo
-
-                // 3. ESTADÍSTICAS (Rating y Horas) 📊
-                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    // Rating
-                    Icon(
-                        imageVector = Icons.Filled.Star,
-                        contentDescription = "Rating",
-                        tint = Color(0xFFFFB300), // Color Dorado/Amarillo
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        // Si es null mostramos "-", si tiene nota la mostramos
-                        text = game.rating?.toString() ?: "-",
-                        style = MaterialTheme.typography.bodySmall,
-                        fontWeight = FontWeight.Bold
-                    )
-
-                    Spacer(modifier = Modifier.width(16.dp)) // Separador
-
-                    // Horas Jugadas
-                    Icon(
-                        imageVector = Icons.Filled.DateRange, // O un icono de reloj
-                        contentDescription = "Horas",
-                        tint = Color.Gray,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "${game.hoursPlayed} h",
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
             }
         }
     }
