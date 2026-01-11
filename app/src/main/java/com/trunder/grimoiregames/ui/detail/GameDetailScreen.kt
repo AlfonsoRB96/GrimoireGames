@@ -25,6 +25,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
+import com.trunder.grimoiregames.data.entity.Game
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -101,11 +102,13 @@ fun GameDetailScreen(
                     // 3. FILA DE INFO RÁPIDA (Metacritic, Lanzamiento, Género)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         InfoItem(label = "Metacritic", value = currentSafeGame.metacritic?.toString() ?: "N/A", isBadge = true)
                         InfoItem(label = "Lanzamiento", value = currentSafeGame.releaseDate?.take(4) ?: "TBA")
                         InfoItem(label = "Género", value = currentSafeGame.genre?.split(",")?.firstOrNull() ?: "N/A")
+                        AgeRatingBadge(game = currentSafeGame)
                     }
 
                     HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
@@ -220,6 +223,59 @@ fun InfoItem(label: String, value: String, isBadge: Boolean = false) {
             }
         } else {
             Text(text = value, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+fun AgeRatingBadge(game: Game) {
+    // 1. Intentamos coger el PEGI real. Si es nulo, cogemos el ESRB.
+    val rawRating = game.pegi ?: game.esrb
+
+    if (rawRating != null) {
+        // 2. LÓGICA DE TRADUCCIÓN (De ESRB Americano a Estilo PEGI Europeo)
+        val (displayText, color) = when {
+            // --- VERDE (Niños) ---
+            // ESRB "Everyone" es como PEGI 3 o 7
+            rawRating.contains("Everyone", ignoreCase = true) || rawRating.contains("3") ->
+                "PEGI 3" to Color(0xFF4CAF50) // Verde
+
+            // --- AMARILLO/NARANJA (Adolescentes) ---
+            // ESRB "Everyone 10+" es como PEGI 7 o 12
+            rawRating.contains("10+", ignoreCase = true) || rawRating.contains("7") ->
+                "PEGI 7" to Color(0xFFFFC107) // Amarillo
+
+            // ESRB "Teen" es casi idéntico a PEGI 12
+            rawRating.contains("Teen", ignoreCase = true) || rawRating.contains("12") ->
+                "PEGI 12" to Color(0xFFFF9800) // Naranja
+
+            // --- ROJO (Adultos) ---
+            // ESRB "Mature" es PEGI 16 o 18 (Suele ser 16/18 dependiendo del juego)
+            // Lo mapeamos a 16 o 18 según prefieras. Mature suele ser +17 en USA.
+            rawRating.contains("Mature", ignoreCase = true) || rawRating.contains("16") ->
+                "PEGI 16" to Color(0xFFF44336) // Rojo
+
+            // --- NEGRO (Adultos estricto) ---
+            // ESRB "Adults Only" es PEGI 18
+            rawRating.contains("Adults Only", ignoreCase = true) || rawRating.contains("18") ->
+                "PEGI 18" to Color(0xFFD32F2F) // Rojo Oscuro / Negro
+
+            // --- CASO DESCONOCIDO (Mostramos el texto tal cual llega) ---
+            else -> rawRating to Color.Gray
+        }
+
+        Surface(
+            color = color,
+            shape = RoundedCornerShape(4.dp),
+            modifier = Modifier.padding(start = 8.dp)
+        ) {
+            Text(
+                text = displayText,
+                color = Color.White,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+            )
         }
     }
 }
