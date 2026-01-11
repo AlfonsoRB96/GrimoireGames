@@ -11,8 +11,11 @@ data class IgdbGameDto(
     @SerializedName("first_release_date")
     val firstReleaseDate: Long?, // ¡OJO! Viene en formato UNIX Timestamp (segundos)
 
-    @SerializedName("total_rating")
-    val totalRating: Double?, // Nota (0-100)
+    @SerializedName("aggregated_rating")
+    val aggregatedRating: Double?, // Prensa
+
+    @SerializedName("rating")
+    val rating: Double?, // Usuarios (0-100)
 
     val cover: IgdbImageDto?, // Carátula
 

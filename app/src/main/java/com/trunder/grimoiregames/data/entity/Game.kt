@@ -25,6 +25,7 @@ data class Game(
     val developer: String? = null,  // Ej: "Square Enix"
     val publisher: String? = null,  // Ej: "SEGA"
     val metacritic: Int? = null,    // Ej: 85
+    val userRating: Int? = null,
     val releaseDate: String? = null, // Ej: "2017-02-23"
 
     // 👇 NUEVOS CAMPOS PARA LOS FILTROS AVANZADOS

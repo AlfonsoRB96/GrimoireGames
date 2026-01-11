@@ -61,7 +61,7 @@ class GameRepository @Inject constructor(
         val token = getValidToken()
 
         val bodyString = """
-            fields name, cover.url, first_release_date, total_rating, genres.name, platforms.name, summary, involved_companies.company.name, involved_companies.developer, involved_companies.publisher, age_ratings.category, age_ratings.rating;
+            fields name, cover.url, first_release_date, rating, aggregated_rating, genres.name, platforms.name, summary, involved_companies.company.name, involved_companies.developer, involved_companies.publisher, age_ratings.category, age_ratings.rating;
             where id = $igdbId;
         """.trimIndent()
 
@@ -98,7 +98,8 @@ class GameRepository @Inject constructor(
                 status = "Backlog",
                 imageUrl = hdImageUrl,
                 description = details.summary,
-                metacritic = details.totalRating?.toInt(),
+                metacritic = details.aggregatedRating?.toInt(),
+                userRating = details.rating?.toInt(),
                 releaseDate = releaseDateStr,
                 genre = details.genres?.firstOrNull()?.name ?: "Desconocido",
                 developer = details.involvedCompanies?.find { it.developer }?.company?.name ?: "Desconocido",
@@ -124,9 +125,11 @@ class GameRepository @Inject constructor(
     suspend fun fetchAndSaveGameDetails(game: Game) {
         val token = getValidToken()
 
-        // Usamos game.rawgId (que ahora guarda el ID de IGDB) para buscar
+        // 👇 CORRECCIÓN:
+        // 1. Usamos ${game.rawgId} porque el ID está dentro del objeto Game.
+        // 2. Pedimos 'rating' y 'aggregated_rating'.
         val bodyString = """
-            fields name, cover.url, first_release_date, total_rating, genres.name, platforms.name, summary, involved_companies.company.name, involved_companies.developer, involved_companies.publisher, age_ratings.category, age_ratings.rating;
+            fields name, cover.url, first_release_date, rating, aggregated_rating, genres.name, platforms.name, summary, involved_companies.company.name, involved_companies.developer, involved_companies.publisher, age_ratings.category, age_ratings.rating;
             where id = ${game.rawgId};
         """.trimIndent()
 
@@ -136,32 +139,30 @@ class GameRepository @Inject constructor(
             val games = igdbApi.getGames(Constants.IGDB_CLIENT_ID, token, body)
             val details = games.firstOrNull() ?: return
 
-            // --- REPETIMOS EL MAPEO (Igual que en addGame) ---
-
+            // Mapeo (Imagen HD, Fecha, etc...)
             val hdImageUrl = details.cover?.url?.replace("t_thumb", "t_cover_big")?.let { "https:$it" }
 
             val releaseDateStr = details.firstReleaseDate?.let {
-                val date = Date(it * 1000)
-                SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(date)
+                java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date(it * 1000))
             }
 
-            val esrbObj = details.ageRatings?.find { it.category == 1 }
-            val pegiObj = details.ageRatings?.find { it.category == 2 }
-            val esrbText = mapEsrbIdToText(esrbObj?.rating)
-            val pegiText = mapPegiIdToText(pegiObj?.rating)
-
-            // Actualizamos el juego existente
+            // Actualizamos el juego
             val updatedGame = game.copy(
                 description = details.summary,
-                metacritic = details.totalRating?.toInt(),
+                // 👇 ACTUALIZAMOS LAS DOS NOTAS
+                metacritic = details.aggregatedRating?.toInt(), // Prensa
+                userRating = details.rating?.toInt(),           // Usuarios
+
                 releaseDate = releaseDateStr,
                 genre = details.genres?.firstOrNull()?.name ?: "Desconocido",
                 developer = details.involvedCompanies?.find { it.developer }?.company?.name ?: "Desconocido",
                 publisher = details.involvedCompanies?.find { it.publisher }?.company?.name ?: "Desconocido",
-                esrb = esrbText,
-                pegi = pegiText,
-                imageUrl = hdImageUrl ?: game.imageUrl // Si IGDB no tiene foto, mantenemos la que teníamos
-                // ⚠️ IMPORTANTE: No tocamos 'platform', mantenemos la que eligió el usuario
+
+                // Mapeo de PEGI/ESRB
+                esrb = mapEsrbIdToText(details.ageRatings?.find { it.category == 1 }?.rating),
+                pegi = mapPegiIdToText(details.ageRatings?.find { it.category == 2 }?.rating),
+
+                imageUrl = hdImageUrl ?: game.imageUrl
             )
 
             gameDao.updateGame(updatedGame)

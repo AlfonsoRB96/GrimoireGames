@@ -51,7 +51,7 @@ fun HomeScreen(
     var isSearching by remember { mutableStateOf(false) }
 
     // Estados internos del Diálogo de Filtros
-    var selectedCategoryForFilter by remember { mutableStateOf<String?>(null) } // null = Viendo lista de categorías
+    var selectedCategoryForFilter by remember { mutableStateOf<String?>(null) }
 
     // 1. DIÁLOGO DE BORRADO
     if (gameToDelete != null) {
@@ -116,13 +116,12 @@ fun HomeScreen(
 
                     HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
-                    // --- CUERPO DEL DIÁLOGO (CAMBIA SEGÚN ESTADO) ---
+                    // --- CUERPO DEL DIÁLOGO ---
                     LazyColumn(modifier = Modifier.weight(1f)) {
 
                         if (selectedCategoryForFilter == null) {
-                            // VISTA A: LISTA DE CATEGORÍAS (Plataforma, Género, Estado...)
+                            // VISTA A: LISTA DE CATEGORÍAS (Plataforma, Género...)
                             items(availableData.keys.toList()) { category ->
-                                // Calculamos si hay filtros activos en esta categoría para mostrar un indicador
                                 val isActive = when(category) {
                                     "Plataforma" -> activeFilters.platforms.isNotEmpty()
                                     "Género" -> activeFilters.genres.isNotEmpty()
@@ -132,6 +131,7 @@ fun HomeScreen(
                                     "PEGI" -> activeFilters.pegis.isNotEmpty()
                                     "ESRB" -> activeFilters.esrbs.isNotEmpty()
                                     "Metacritic" -> activeFilters.metacriticRanges.isNotEmpty()
+                                    "Año de Lanzamiento" -> activeFilters.releaseYears.isNotEmpty() // Añadido
                                     else -> false
                                 }
 
@@ -147,7 +147,7 @@ fun HomeScreen(
                                         Text(text = category, style = MaterialTheme.typography.bodyLarge)
                                         if (isActive) {
                                             Spacer(Modifier.width(8.dp))
-                                            Badge { Text("!") } // Indicador de filtro activo
+                                            Badge { Text("!") }
                                         }
                                     }
                                     Icon(
@@ -161,11 +161,13 @@ fun HomeScreen(
                             }
 
                         } else {
-                            // VISTA B: LISTA DE OPCIONES (Switch, PS5, etc.)
+                            // VISTA B: LISTA DE OPCIONES (Switch, PS5...)
+                            // 👇 AQUÍ INTEGRAMOS LA SOLUCIÓN DEL CHECK
                             val options = availableData[selectedCategoryForFilter] ?: emptyList()
 
+                            // Usamos un layout FlowRow para que parezcan "etiquetas" o una lista vertical
+                            // En este caso, mantendremos lista vertical pero usando FilterChip para el check bonito.
                             items(options) { option ->
-                                // Verificamos si está seleccionado
                                 val isSelected = when(selectedCategoryForFilter) {
                                     "Plataforma" -> option in activeFilters.platforms
                                     "Género" -> option in activeFilters.genres
@@ -175,21 +177,31 @@ fun HomeScreen(
                                     "PEGI" -> option in activeFilters.pegis
                                     "ESRB" -> option in activeFilters.esrbs
                                     "Metacritic" -> option in activeFilters.metacriticRanges
+                                    "Año de Lanzamiento" -> option in activeFilters.releaseYears
                                     else -> false
                                 }
 
+                                // Usamos un Row con FilterChip para que tenga el look material
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .clickable { viewModel.toggleFilter(selectedCategoryForFilter!!, option) }
-                                        .padding(vertical = 4.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                                        .padding(horizontal = 4.dp, vertical = 2.dp)
                                 ) {
-                                    Checkbox(
-                                        checked = isSelected,
-                                        onCheckedChange = { viewModel.toggleFilter(selectedCategoryForFilter!!, option) }
+                                    FilterChip(
+                                        selected = isSelected,
+                                        onClick = { viewModel.toggleFilter(selectedCategoryForFilter!!, option) },
+                                        label = { Text(option) },
+                                        leadingIcon = if (isSelected) {
+                                            {
+                                                Icon(
+                                                    imageVector = Icons.Default.Check,
+                                                    contentDescription = "Seleccionado",
+                                                    modifier = Modifier.size(FilterChipDefaults.IconSize)
+                                                )
+                                            }
+                                        } else null,
+                                        modifier = Modifier.fillMaxWidth()
                                     )
-                                    Text(text = option, modifier = Modifier.padding(start = 8.dp))
                                 }
                             }
                         }
@@ -204,7 +216,7 @@ fun HomeScreen(
         }
     }
 
-    // --- SCAFFOLD PRINCIPAL (Igual que antes, con pequeña actualización en el botón del filtro) ---
+    // --- SCAFFOLD ---
     Scaffold(
         topBar = {
             TopAppBar(
@@ -221,10 +233,9 @@ fun HomeScreen(
                     } else {
                         Column {
                             Text("Grimoire Games")
-                            // Lógica para contar filtros totales
                             val totalFilters = activeFilters.platforms.size + activeFilters.genres.size +
                                     activeFilters.statuses.size + activeFilters.developers.size +
-                                    activeFilters.metacriticRanges.size // ...etc
+                                    activeFilters.releaseYears.size
                             if (totalFilters > 0) {
                                 Text("Filtros activos: $totalFilters", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                             }
@@ -238,14 +249,10 @@ fun HomeScreen(
                         }
                     } else {
                         IconButton(onClick = { isSearching = true }) { Icon(Icons.Default.Search, "Buscar") }
-
-                        // BOTÓN FILTRO
                         IconButton(onClick = { showFilterDialog = true }) {
                             val hasFilters = (activeFilters != GameFilters())
                             Icon(Icons.Default.FilterList, "Filtrar", tint = if (hasFilters) MaterialTheme.colorScheme.primary else LocalContentColor.current)
                         }
-
-                        // BOTÓN ORDENAR
                         Box {
                             IconButton(onClick = { showSortMenu = true }) { Icon(Icons.Default.Sort, "Ordenar") }
                             DropdownMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
@@ -269,34 +276,24 @@ fun HomeScreen(
             }
         } else {
             LazyVerticalGrid(
-                columns = GridCells.Fixed(3), // 👈 AHORA SON 3 COLUMNAS
+                columns = GridCells.Fixed(3),
                 contentPadding = PaddingValues(
                     top = innerPadding.calculateTopPadding() + 16.dp,
                     bottom = innerPadding.calculateBottomPadding() + 80.dp,
-                    start = 8.dp, // Reducimos un poco los márgenes laterales (antes 12)
-                    end = 8.dp
+                    start = 8.dp, end = 8.dp
                 ),
                 modifier = Modifier.fillMaxSize()
             ) {
                 games.forEach { (headerTitle, gamesInGroup) ->
-
-                    // 1. LA CABECERA (IMPORTANTE: GridItemSpan(3))
-                    // Esto asegura que el título ocupe TODO el ancho y no deje huecos
-                    item(
-                        span = { GridItemSpan(3) } // 👈 ¡ESTO ARREGLA EL DESAJUSTE!
-                    ) {
+                    item(span = { GridItemSpan(3) }) {
                         Text(
                             text = headerTitle,
                             style = MaterialTheme.typography.titleLarge,
                             color = MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.Bold,
-                            modifier = Modifier
-                                .padding(top = 24.dp, bottom = 8.dp, start = 8.dp) // Alineado con las cartas
-                                .fillMaxWidth()
+                            modifier = Modifier.padding(top = 24.dp, bottom = 8.dp, start = 8.dp).fillMaxWidth()
                         )
                     }
-
-                    // 2. LOS JUEGOS
                     items(gamesInGroup) { game ->
                         GameCard(
                             game = game,
@@ -312,11 +309,7 @@ fun HomeScreen(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun GameCard(
-    game: Game,
-    onClick: () -> Unit,
-    onLongClick: () -> Unit
-) {
+fun GameCard(game: Game, onClick: () -> Unit, onLongClick: () -> Unit) {
     val (platformIcon, platformColor) = when {
         game.platform.contains("Switch", true) -> Icons.Default.Gamepad to Color(0xFFE60012)
         game.platform.contains("GameCube", true) -> Icons.Default.Apps to Color(0xFF6A5ACD)
@@ -328,102 +321,25 @@ fun GameCard(
     }
 
     Card(
-        modifier = Modifier
-            .padding(4.dp)
-            .fillMaxWidth()
-            .aspectRatio(1f) // Cuadrada
-            .combinedClickable(
-                onClick = onClick,
-                onLongClick = onLongClick
-            ),
+        modifier = Modifier.padding(4.dp).fillMaxWidth().aspectRatio(1f).combinedClickable(onClick = onClick, onLongClick = onLongClick),
         shape = RoundedCornerShape(8.dp),
         elevation = CardDefaults.cardElevation(3.dp)
     ) {
         Box {
-            // 1. Imagen de fondo
-            AsyncImage(
-                model = game.imageUrl,
-                contentDescription = game.title,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
-
-            // 2. Iconos superiores (Igual que antes)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(6.dp)
-                    .align(Alignment.TopCenter),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                // Icono Consola
-                Surface(
-                    color = platformColor.copy(alpha = 0.9f),
-                    shape = CircleShape,
-                    modifier = Modifier.size(24.dp)
-                ) {
-                    Icon(
-                        imageVector = platformIcon,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.padding(5.dp)
-                    )
+            AsyncImage(model = game.imageUrl, contentDescription = game.title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            Row(modifier = Modifier.fillMaxWidth().padding(6.dp).align(Alignment.TopCenter), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                Surface(color = platformColor.copy(alpha = 0.9f), shape = CircleShape, modifier = Modifier.size(24.dp)) {
+                    Icon(imageVector = platformIcon, contentDescription = null, tint = Color.White, modifier = Modifier.padding(5.dp))
                 }
-                // Etiqueta Estado (Abreviada)
                 Surface(
-                    color = when(game.status) {
-                        "Playing" -> Color(0xFFFFD600)
-                        "Completed" -> Color(0xFF4CAF50)
-                        else -> Color.DarkGray
-                    },
+                    color = when(game.status) { "Playing" -> Color(0xFFFFD600); "Completed" -> Color(0xFF4CAF50); else -> Color.DarkGray },
                     shape = RoundedCornerShape(4.dp)
                 ) {
-                    val statusText = when(game.status) {
-                        "Playing" -> "P"
-                        "Completed" -> "C"
-                        else -> "B"
-                    }
-                    Text(
-                        text = statusText,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = if (game.status == "Playing") Color.Black else Color.White
-                    )
+                    Text(text = if(game.status == "Playing") "P" else if(game.status=="Completed") "C" else "B", modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = if (game.status == "Playing") Color.Black else Color.White)
                 }
             }
-
-            // 👇 3. LA SOMBRA (Degradado inferior)
-            // Esta caja crea la "magia". Solo ocupa la parte baja y tiene un degradado suave.
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(80.dp) // Altura fija para que no tape toda la imagen, solo lo necesario para 2 líneas de texto
-                    .align(Alignment.BottomCenter)
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                Color.Transparent, // Empieza transparente arriba
-                                Color.Black.copy(alpha = 0.7f) // Termina en negro al 70% abajo del todo
-                            )
-                        )
-                    )
-            )
-
-            // 👇 4. EL TÍTULO (Encima de la sombra)
-            Text(
-                text = game.title,
-                modifier = Modifier
-                    .align(Alignment.BottomStart) // Alineado abajo a la izquierda
-                    .padding(horizontal = 8.dp, vertical = 8.dp) // Separación del borde
-                    .fillMaxWidth(),
-                style = MaterialTheme.typography.labelLarge,
-                color = Color.White,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Start // Alineado a la izquierda queda más natural con sombra
-            )
+            Box(modifier = Modifier.fillMaxWidth().height(80.dp).align(Alignment.BottomCenter).background(Brush.verticalGradient(colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.7f)))))
+            Text(text = game.title, modifier = Modifier.align(Alignment.BottomStart).padding(8.dp).fillMaxWidth(), style = MaterialTheme.typography.labelLarge, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.Start)
         }
     }
 }

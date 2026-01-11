@@ -1,14 +1,18 @@
 package com.trunder.grimoiregames.ui.detail
 
 import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Newspaper
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Timer
@@ -99,16 +103,37 @@ fun GameDetailScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // 3. FILA DE INFO RÁPIDA (Metacritic, Lanzamiento, Género)
+                    // 3. FILA DE INFO RÁPIDA (Notas, Lanzamiento, Género, PEGI)
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp), // Un poco de aire vertical
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        InfoItem(label = "Metacritic", value = currentSafeGame.metacritic?.toString() ?: "N/A", isBadge = true)
-                        InfoItem(label = "Lanzamiento", value = currentSafeGame.releaseDate?.take(4) ?: "TBA")
+                        // A. LAS NOTAS (Prensa + Fans juntas)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            // Nota Prensa (Antes Metacritic)
+                            RatingBadge(
+                                score = currentSafeGame.metacritic,
+                                label = "Score",
+                                icon = Icons.Default.Newspaper
+                            )
+
+                            Spacer(modifier = Modifier.width(8.dp)) // Separación entre notas
+
+                            // Nota Fans (Nueva)
+                            RatingBadge(
+                                score = currentSafeGame.userRating,
+                                label = "User Score",
+                                icon = Icons.Default.Person
+                            )
+                        }
+
+                        // B. INFO TEXTUAL (Se mantiene igual)
+                        // Usamos Box o Row simples para alinear si InfoItem ocupa mucho
+                        InfoItem(label = "Año", value = currentSafeGame.releaseDate?.take(4) ?: "TBA")
                         InfoItem(label = "Género", value = currentSafeGame.genre?.split(",")?.firstOrNull() ?: "N/A")
-                        AgeRatingBadge(game = currentSafeGame)
                     }
 
                     HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
@@ -131,6 +156,8 @@ fun GameDetailScreen(
                     // 5. DATOS TÉCNICOS
                     TechnicalDataRow(label = "Desarrollador", value = currentSafeGame.developer)
                     TechnicalDataRow(label = "Editor", value = currentSafeGame.publisher)
+                    // C. PEGI (Se mantiene igual)
+                    AgeRatingBadge(game = currentSafeGame)
 
                     HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
 
@@ -284,6 +311,49 @@ fun TechnicalDataRow(label: String, value: String?) {
         Row(modifier = Modifier.padding(vertical = 4.dp)) {
             Text(text = "$label: ", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
             Text(text = value, style = MaterialTheme.typography.bodyMedium)
+        }
+    }
+}
+
+@Composable
+fun RatingBadge(score: Int?, label: String, icon: androidx.compose.ui.graphics.vector.ImageVector) {
+    val scoreText = score?.toString() ?: "--"
+
+    // Color semáforo según la nota
+    val color = when {
+        score == null -> Color.Gray
+        score >= 75 -> Color(0xFF4CAF50) // Verde
+        score >= 50 -> Color(0xFFFFC107) // Amarillo
+        else -> Color(0xFFF44336)        // Rojo
+    }
+
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        // Círculo con la nota
+        Surface(
+            color = color.copy(alpha = 0.2f), // Fondo suave
+            shape = CircleShape,
+            border = BorderStroke(2.dp, color),
+            modifier = Modifier.size(42.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Text(
+                    text = scoreText,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = color
+                )
+            }
+        }
+        // Texto debajo (Prensa/Fans)
+        Spacer(modifier = Modifier.height(4.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(12.dp), tint = Color.Gray)
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.Gray
+            )
         }
     }
 }
