@@ -1,6 +1,7 @@
 package com.trunder.grimoiregames.ui.detail
 
 import android.widget.Toast
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -18,6 +19,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -161,17 +163,68 @@ fun GameDetailScreen(
                     HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
 
                     // 4. SINOPSIS
-                    Text(
-                        text = "Sinopsis",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    val translatedDescription by viewModel.translatedDescription.collectAsState()
+                    val isTranslating by viewModel.isTranslating.collectAsState()
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Sinopsis",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.SemiBold
+                        )
+
+                        // LÓGICA DEL BOTÓN:
+                        // Solo lo mostramos si aún NO tenemos la traducción
+                        if (translatedDescription == null) {
+                            if (isTranslating) {
+                                // Si está cargando, mostramos ruedita pequeña
+                                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                            } else {
+                                // Si no, mostramos botón "Traducir"
+                                TextButton(
+                                    onClick = {
+                                        // Al pulsar, mandamos el texto original al ViewModel
+                                        viewModel.translateDescription(currentSafeGame.description)
+                                    },
+                                    // Ajustamos padding para que no ocupe mucho
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                                ) {
+                                    Icon(
+                                        // Asegúrate de tener: import androidx.compose.material.icons.filled.Translate
+                                        // Si no te sale el icono Translate, usa Icons.Default.Language o Icons.Default.Refresh
+                                        imageVector = Icons.Default.Translate,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Traducir", style = MaterialTheme.typography.labelMedium)
+                                }
+                            }
+                        }
+                    }
+
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = currentSafeGame.description ?: "No hay descripción disponible para este juego.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        textAlign = TextAlign.Justify
-                    )
+
+                    // QUÉ TEXTO MOSTRAR:
+                    // Si hay traducción, mostramos esa. Si no, la original. Si es null, el mensaje por defecto.
+                    val descriptionToShow = translatedDescription ?: currentSafeGame.description ?: "No hay descripción disponible."
+
+                    // Animamos suavemente el cambio de texto (Opcional, queda bonito)
+                    AnimatedContent(
+                        targetState = descriptionToShow,
+                        label = "textChange"
+                    ) { text ->
+                        Text(
+                            text = text,
+                            style = MaterialTheme.typography.bodyMedium,
+                            textAlign = TextAlign.Justify,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+                        )
+                    }
 
                     Spacer(modifier = Modifier.height(16.dp))
 
