@@ -2,6 +2,7 @@ package com.trunder.grimoiregames.ui.detail
 
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -11,6 +12,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Newspaper
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Save
@@ -20,6 +22,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -27,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.trunder.grimoiregames.data.entity.Game
@@ -39,6 +43,7 @@ fun GameDetailScreen(
 ) {
     val game by viewModel.game.collectAsState(initial = null)
     val context = LocalContext.current
+    var showScoreDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -111,22 +116,38 @@ fun GameDetailScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // A. LAS NOTAS (Prensa + Fans juntas)
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            // Nota Prensa (Antes Metacritic)
+                        // A. LAS NOTAS (Prensa + Fans juntas) - AHORA CON CLICK
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp)) // Redondeamos las esquinas del área tocable
+                                .clickable { showScoreDialog = true } // <--- ¡AQUÍ ESTÁ LA CLAVE!
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)) // Un fondo sutil para que parezca un botón
+                                .padding(horizontal = 8.dp, vertical = 4.dp) // Un poco de aire interno
+                        ) {
+                            // Nota Prensa
                             RatingBadge(
-                                score = currentSafeGame.metacritic,
+                                score = currentSafeGame.metacriticPress, // Tu cambio: Metacritic por defecto
                                 label = "Score",
                                 icon = Icons.Default.Newspaper
                             )
 
-                            Spacer(modifier = Modifier.width(8.dp)) // Separación entre notas
+                            Spacer(modifier = Modifier.width(12.dp))
 
-                            // Nota Fans (Nueva)
+                            // Nota Fans
                             RatingBadge(
-                                score = currentSafeGame.userRating,
+                                score = currentSafeGame.metacriticUser,
                                 label = "User Score",
                                 icon = Icons.Default.Person
+                            )
+
+                            // Icono pequeño para indicar que hay "más cosas" (desplegable)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Icon(
+                                imageVector = Icons.Default.ArrowDropDown,
+                                contentDescription = "Ver más notas",
+                                tint = Color.Gray,
+                                modifier = Modifier.size(20.dp)
                             )
                         }
 
@@ -223,6 +244,15 @@ fun GameDetailScreen(
                     Spacer(modifier = Modifier.height(80.dp)) // Espacio final
                 }
             }
+
+            // 👇 AQUÍ SE DIBUJA EL MODAL SI LA VARIABLE ES TRUE
+            if (showScoreDialog) {
+                ScoreComparisonDialog(
+                    game = currentSafeGame,
+                    onDismiss = { showScoreDialog = false }
+                )
+            }
+
         } ?: run {
             // Pantalla de carga mientras llega el Flow
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -354,6 +384,120 @@ fun RatingBadge(score: Int?, label: String, icon: androidx.compose.ui.graphics.v
                 style = MaterialTheme.typography.labelSmall,
                 color = Color.Gray
             )
+        }
+    }
+}
+
+@Composable
+fun ScorePill(score: Int?, isPress: Boolean) {
+    if (score == null) {
+        // Si no hay nota, mostramos guiones grises
+        Text("--", color = Color.Gray)
+    } else {
+        // Colores semáforo
+        val color = if (score >= 75) Color(0xFF4CAF50) // Verde
+        else if (score >= 50) Color(0xFFFFC107)        // Amarillo
+        else Color(0xFFF44336)                         // Rojo
+
+        // Dibujamos la "pastilla"
+        Surface(
+            // Si es Prensa -> Fondo sólido. Si es Usuario -> Solo borde.
+            color = if (isPress) color else Color.Transparent,
+            border = if (!isPress) BorderStroke(1.dp, color) else null,
+            shape = RoundedCornerShape(4.dp),
+            modifier = Modifier.padding(4.dp)
+        ) {
+            Text(
+                text = score.toString(),
+                // Si es Prensa -> Texto Blanco. Si es Usuario -> Texto del color de la nota.
+                color = if (isPress) Color.White else color,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+            )
+        }
+    }
+}
+
+// --- COMPONENTES DEL MODAL (Pégalos al final del archivo) ---
+
+@Composable
+fun ScoreComparisonDialog(
+    game: Game,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Tabla de Puntuaciones",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                // Cabecera de la tabla
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    Spacer(modifier = Modifier.weight(1f)) // Hueco para el nombre
+                    Text("Prensa", modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, fontSize = 12.sp)
+                    Text("Usuarios", modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, fontSize = 12.sp)
+                }
+
+                HorizontalDivider()
+
+                // 1. METACRITIC (Amarillo)
+                ScoreRow(
+                    sourceName = "Metacritic",
+                    pressScore = game.metacriticPress,
+                    userScore = game.metacriticUser,
+                    color = Color(0xFFFFCC33)
+                )
+
+                // 2. OPENCRITIC (Naranja)
+                ScoreRow(
+                    sourceName = "OpenCritic",
+                    pressScore = game.opencriticPress,
+                    userScore = null, // OpenCritic no suele tener user score relevante en API pública
+                    color = Color(0xFFFC430A)
+                )
+
+                // 3. IGDB (Morado)
+                ScoreRow(
+                    sourceName = "IGDB",
+                    pressScore = game.igdbPress,
+                    userScore = game.igdbUser,
+                    color = Color(0xFF9147FF)
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Cerrar") }
+        }
+    )
+}
+
+@Composable
+fun ScoreRow(sourceName: String, pressScore: Int?, userScore: Int?, color: Color) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Nombre de la fuente (con bolita de color)
+        Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+            Surface(color = color, shape = CircleShape, modifier = Modifier.size(8.dp)) {}
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(sourceName, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
+        }
+
+        // Nota Prensa
+        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+            ScorePill(score = pressScore, isPress = true)
+        }
+
+        // Nota Usuario
+        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+            ScorePill(score = userScore, isPress = false)
         }
     }
 }

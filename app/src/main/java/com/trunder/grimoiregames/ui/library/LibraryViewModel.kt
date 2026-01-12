@@ -120,7 +120,7 @@ class HomeViewModel @Inject constructor(
         // 3. LÓGICA ESPECIAL PARA METACRITIC
         if (currentFilters.metacriticRanges.isNotEmpty()) {
             result = result.filter { game ->
-                val score = game.metacritic ?: 0 // Si no tiene nota, asumimos 0
+                val score = game.metacriticPress ?: 0 // Si no tiene nota, asumimos 0
                 currentFilters.metacriticRanges.any { range ->
                     when {
                         range.startsWith("90+") -> score >= 90

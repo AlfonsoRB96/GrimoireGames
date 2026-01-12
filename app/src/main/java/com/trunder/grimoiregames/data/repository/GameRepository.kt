@@ -3,6 +3,7 @@ package com.trunder.grimoiregames.data.repository
 import com.trunder.grimoiregames.data.dao.GameDao
 import com.trunder.grimoiregames.data.entity.Game
 import com.trunder.grimoiregames.data.remote.IgdbApi
+import com.trunder.grimoiregames.data.remote.MetacriticScraper
 import com.trunder.grimoiregames.data.remote.TwitchAuthApi
 import com.trunder.grimoiregames.data.remote.dto.IgdbGameDto
 import com.trunder.grimoiregames.util.Constants
@@ -82,6 +83,9 @@ class GameRepository @Inject constructor(
                 return
             }
 
+            // Usamos el nombre limpio de IGDB y la plataforma seleccionada
+            val scrapeResult = MetacriticScraper.scrapScores(details.name, selectedPlatform)
+
             // Mapeo (resumido para no ocupar mucho)
             val hdImageUrl = details.cover?.url?.replace("t_thumb", "t_cover_big")?.let { "https:$it" }
             val releaseDateStr = details.firstReleaseDate?.let {
@@ -98,8 +102,11 @@ class GameRepository @Inject constructor(
                 status = "Backlog",
                 imageUrl = hdImageUrl,
                 description = details.summary,
-                metacritic = details.aggregatedRating?.toInt(),
-                userRating = details.rating?.toInt(),
+                igdbPress = details.aggregatedRating?.toInt(),
+                igdbUser = details.rating?.toInt(),
+                metacriticPress = scrapeResult.metaScore,
+                metacriticUser = scrapeResult.userScore,
+                opencriticPress = null,
                 releaseDate = releaseDateStr,
                 genre = details.genres?.firstOrNull()?.name ?: "Desconocido",
                 developer = details.involvedCompanies?.find { it.developer }?.company?.name ?: "Desconocido",
@@ -139,6 +146,8 @@ class GameRepository @Inject constructor(
             val games = igdbApi.getGames(Constants.IGDB_CLIENT_ID, token, body)
             val details = games.firstOrNull() ?: return
 
+            val scrapeResult = MetacriticScraper.scrapScores(details.name, game.platform)
+
             // Mapeo (Imagen HD, Fecha, etc...)
             val hdImageUrl = details.cover?.url?.replace("t_thumb", "t_cover_big")?.let { "https:$it" }
 
@@ -150,9 +159,11 @@ class GameRepository @Inject constructor(
             val updatedGame = game.copy(
                 description = details.summary,
                 // 👇 ACTUALIZAMOS LAS DOS NOTAS
-                metacritic = details.aggregatedRating?.toInt(), // Prensa
-                userRating = details.rating?.toInt(),           // Usuarios
-
+                igdbPress = details.aggregatedRating?.toInt(), // Prensa
+                igdbUser = details.rating?.toInt(),           // Usuarios
+                metacriticPress = scrapeResult.metaScore,
+                metacriticUser = scrapeResult.userScore,
+                opencriticPress = null,
                 releaseDate = releaseDateStr,
                 genre = details.genres?.firstOrNull()?.name ?: "Desconocido",
                 developer = details.involvedCompanies?.find { it.developer }?.company?.name ?: "Desconocido",
