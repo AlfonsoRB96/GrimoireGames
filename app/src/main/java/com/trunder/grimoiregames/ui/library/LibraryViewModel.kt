@@ -17,7 +17,6 @@ enum class SortOption {
 }
 
 // 👇 CLASE DE DATOS PARA ALMACENAR LOS FILTROS ACTIVOS
-// Usamos Sets (Conjuntos) para permitir selección múltiple
 data class GameFilters(
     val platforms: Set<String> = emptySet(),
     val genres: Set<String> = emptySet(),
@@ -26,12 +25,12 @@ data class GameFilters(
     val statuses: Set<String> = emptySet(),
     val pegis: Set<String> = emptySet(),
     val esrbs: Set<String> = emptySet(),
-    val metacriticRanges: Set<String> = emptySet(), // Ej: "90+", "75-89"
+    val metacriticRanges: Set<String> = emptySet(),
     val releaseYears: Set<String> = emptySet()
 )
 
 @HiltViewModel
-class HomeViewModel @Inject constructor(
+class LibraryViewModel @Inject constructor(
     private val repository: GameRepository
 ) : ViewModel() {
 
@@ -46,28 +45,54 @@ class HomeViewModel @Inject constructor(
     private val _filters = MutableStateFlow(GameFilters())
     val filters = _filters.asStateFlow()
 
-    // 👇 GENERADOR DE OPCIONES DISPONIBLES (Lee la BD y crea las listas para el diálogo)
+    // 👇 GENERADOR DE OPCIONES DISPONIBLES
     val availableData = repository.allGames.map { games ->
         mapOf(
             "Plataforma" to games.map { it.platform }.distinct().sorted(),
             "Género" to games.mapNotNull { it.genre }.filter { it.isNotBlank() }.distinct().sorted(),
-            "Estado" to listOf("Playing", "Completed", "Backlog"), // Opciones fijas
+            "Estado" to listOf("Playing", "Completed", "Backlog"),
             "Desarrolladora" to games.mapNotNull { it.developer }.filter { it.isNotBlank() }.distinct().sorted(),
             "Distribuidora" to games.mapNotNull { it.publisher }.filter { it.isNotBlank() }.distinct().sorted(),
             "PEGI" to games.mapNotNull { it.pegi }.filter { it.isNotBlank() }.distinct().sorted(),
             "ESRB" to games.mapNotNull { it.esrb }.filter { it.isNotBlank() }.distinct().sorted(),
             "Metacritic" to listOf("90+ (Obra Maestra)", "75-89 (Muy Bueno)", "50-74 (Mixto)", "0-49 (Malo)", "N/A (Sin puntuación"),
             "Año de Lanzamiento" to games.mapNotNull {
-                // Extraemos solo los primeros 4 caracteres (YYYY) de "YYYY-MM-DD"
                 it.releaseDate?.take(4)
             }.distinct().sortedDescending()
-
         )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = emptyMap()
     )
+
+    // --- 🆕 LÓGICA DE ACTUALIZACIÓN (MODAL DE PROGRESO) ---
+
+    // Control del Diálogo Modal (Visible/Invisible)
+    private val _showUpdateDialog = MutableStateFlow(false)
+    val showUpdateDialog = _showUpdateDialog.asStateFlow()
+
+    // Porcentaje de progreso (0 a 100)
+    private val _updateProgress = MutableStateFlow(0)
+    val updateProgress = _updateProgress.asStateFlow()
+
+    // (Hemos eliminado _isRefreshing porque ya no usamos la ruleta nativa)
+
+    fun refreshLibrary() {
+        viewModelScope.launch {
+            _showUpdateDialog.value = true
+            _updateProgress.value = 0
+
+            // Escuchamos el Flow del repositorio que emite el % completado
+            repository.updateAllGames().collect { percentage ->
+                _updateProgress.value = percentage
+            }
+
+            // Al terminar (cuando el Flow se cierra)
+            _showUpdateDialog.value = false
+            _updateProgress.value = 0
+        }
+    }
 
     // 🧠 LÓGICA MAESTRA: COMBINAR TODO
     val games = combine(
@@ -79,7 +104,7 @@ class HomeViewModel @Inject constructor(
 
         var result = gamesList
 
-        // 1. FILTRO DE TEXTO (Solo busca en el Título)
+        // 1. FILTRO DE TEXTO
         if (text.isNotBlank()) {
             val query = text.removeAccents()
             result = result.filter {
@@ -87,13 +112,12 @@ class HomeViewModel @Inject constructor(
             }
         }
 
-        // 2. FILTROS DINÁMICOS (Solo aplicamos si el Set no está vacío)
+        // 2. FILTROS DINÁMICOS
         if (currentFilters.platforms.isNotEmpty()) {
             result = result.filter { it.platform in currentFilters.platforms }
         }
 
         if (currentFilters.genres.isNotEmpty()) {
-            // Filtramos juegos cuyo género coincida. Si es null, no pasa el filtro.
             result = result.filter { it.genre != null && it.genre in currentFilters.genres }
         }
 
@@ -120,7 +144,7 @@ class HomeViewModel @Inject constructor(
         // 3. LÓGICA ESPECIAL PARA METACRITIC
         if (currentFilters.metacriticRanges.isNotEmpty()) {
             result = result.filter { game ->
-                val score = game.metacriticPress ?: 0 // Si no tiene nota, asumimos 0
+                val score = game.metacriticPress ?: 0
                 currentFilters.metacriticRanges.any { range ->
                     when {
                         range.startsWith("90+") -> score >= 90
@@ -134,7 +158,7 @@ class HomeViewModel @Inject constructor(
 
         if (currentFilters.releaseYears.isNotEmpty()) {
             result = result.filter { game ->
-                val year = game.releaseDate?.take(4) // "2023"
+                val year = game.releaseDate?.take(4)
                 year != null && year in currentFilters.releaseYears
             }
         }
@@ -146,7 +170,7 @@ class HomeViewModel @Inject constructor(
             SortOption.STATUS -> result.sortedByDescending { it.status == "Playing" }
         }
 
-        // 5. AGRUPACIÓN (Cabeceras)
+        // 5. AGRUPACIÓN
         when (option) {
             SortOption.TITLE -> sortedList.groupBy {
                 it.title.firstOrNull()?.toString()?.uppercase() ?: "#"
@@ -177,7 +201,6 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    // Activar/Desactivar un filtro específico
     fun toggleFilter(category: String, value: String) {
         val current = _filters.value
         _filters.value = when (category) {
@@ -198,7 +221,6 @@ class HomeViewModel @Inject constructor(
         _filters.value = GameFilters()
     }
 
-    // Helper privado para añadir o quitar elementos de un Set
     private fun toggleSet(set: Set<String>, item: String): Set<String> {
         return if (set.contains(item)) {
             set - item
@@ -207,7 +229,6 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    // Helper para tildes
     private fun String.removeAccents(): String {
         return Normalizer.normalize(this, Normalizer.Form.NFD)
             .replace("\\p{InCombiningDiacriticalMarks}+".toRegex(), "")

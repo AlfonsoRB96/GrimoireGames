@@ -57,28 +57,49 @@ class SettingsViewModel @Inject constructor(
     fun restoreData(uri: Uri) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                // 1. Leemos el contenido del archivo
+                // 1. Leer archivo
                 val inputStream = context.contentResolver.openInputStream(uri)
                 val reader = BufferedReader(InputStreamReader(inputStream))
                 val jsonString = reader.readText()
                 reader.close()
 
-                // 2. Convertimos de JSON a Lista de Juegos
                 val gson = Gson()
                 val listType = object : TypeToken<List<Game>>() {}.type
-                val games: List<Game> = gson.fromJson(jsonString, listType)
+                val backupGames: List<Game> = gson.fromJson(jsonString, listType)
 
-                // 3. Guardamos en la Base de Datos
-                repository.restoreGames(games)
+                // 2. Obtener juegos actuales para no duplicar
+                val currentGames = repository.getAllGamesSync()
+
+                var addedCount = 0
+
+                // 3. Lógica de Fusión Inteligente
+                backupGames.forEach { backupGame ->
+                    // Comprobamos si ya tenemos este juego (mismo ID de IGDB y misma Plataforma)
+                    val exists = currentGames.any {
+                        it.rawgId == backupGame.rawgId && it.platform == backupGame.platform
+                    }
+
+                    if (!exists) {
+                        // ¡Truco! Ponemos id = 0 para que Room le asigne un ID nuevo y libre
+                        // Así evitamos sobreescribir otros juegos.
+                        val newGameEntry = backupGame.copy(id = 0)
+                        repository.insertGame(newGameEntry) // Asegúrate de tener insertGame público o usa insertAll([newGameEntry])
+                        addedCount++
+                    }
+                }
 
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(context, "¡Juegos restaurados! (${games.size} juegos)", Toast.LENGTH_LONG).show()
+                    if (addedCount > 0) {
+                        Toast.makeText(context, "Se han añadido $addedCount juegos nuevos desde la copia.", Toast.LENGTH_LONG).show()
+                    } else {
+                        Toast.makeText(context, "Tu biblioteca ya tenía todos esos juegos.", Toast.LENGTH_SHORT).show()
+                    }
                 }
 
             } catch (e: Exception) {
                 e.printStackTrace()
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(context, "El archivo está dañado o no es válido", Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, "Error al restaurar: ${e.message}", Toast.LENGTH_LONG).show()
                 }
             }
         }

@@ -8,11 +8,14 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.*
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -30,32 +33,41 @@ import com.trunder.grimoiregames.data.entity.Game
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import kotlin.collections.get
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class) // Necesario para PullToRefresh
 @Composable
-fun HomeScreen(
+fun LibraryScreen(
     onAddGameClick: () -> Unit,
     onGameClick: (Int) -> Unit,
-    viewModel: HomeViewModel = hiltViewModel()
+    viewModel: LibraryViewModel = hiltViewModel() // O LibraryViewModel según como lo hayas renombrado
 ) {
+    // --- ESTADOS DE DATOS ---
     val games by viewModel.games.collectAsState()
-    val currentSort by viewModel.sortOption.collectAsState()
     val searchText by viewModel.searchText.collectAsState()
 
     // Filtros
     val activeFilters by viewModel.filters.collectAsState()
     val availableData by viewModel.availableData.collectAsState()
 
-    // Estados UI
+    // --- ESTADOS DE UI ---
     var showSortMenu by remember { mutableStateOf(false) }
     var showFilterDialog by remember { mutableStateOf(false) }
     var gameToDelete by remember { mutableStateOf<Game?>(null) }
     var isSearching by remember { mutableStateOf(false) }
+    val showUpdateDialog by viewModel.showUpdateDialog.collectAsState()
+    val updateProgress by viewModel.updateProgress.collectAsState()
 
     // Estados internos del Diálogo de Filtros
     var selectedCategoryForFilter by remember { mutableStateOf<String?>(null) }
 
-    // 1. DIÁLOGO DE BORRADO
+    // --- ESTADOS NUEVOS PARA REFRESCAR ---
+    // Estado del componente visual de Material 3
+    val pullRefreshState = rememberPullToRefreshState()
+
+    // 1. DIÁLOGO DE BORRADO (Sin cambios)
     if (gameToDelete != null) {
         AlertDialog(
             onDismissRequest = { gameToDelete = null },
@@ -72,11 +84,11 @@ fun HomeScreen(
         )
     }
 
-    // 2. NUEVO DIÁLOGO DE FILTROS AVANZADO
+    // 2. DIÁLOGO DE FILTROS (Sin cambios)
     if (showFilterDialog) {
         Dialog(onDismissRequest = {
             showFilterDialog = false
-            selectedCategoryForFilter = null // Reset al cerrar
+            selectedCategoryForFilter = null
         }) {
             Card(
                 modifier = Modifier.fillMaxWidth().heightIn(min = 400.dp, max = 600.dp).padding(16.dp),
@@ -85,15 +97,13 @@ fun HomeScreen(
                 elevation = CardDefaults.cardElevation(8.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-
-                    // --- CABECERA DEL DIÁLOGO ---
+                    // Cabecera
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         if (selectedCategoryForFilter != null) {
-                            // Botón Atrás
                             IconButton(onClick = { selectedCategoryForFilter = null }) {
                                 Icon(Icons.AutoMirrored.Filled.ArrowBack, "Atrás")
                             }
@@ -102,9 +112,8 @@ fun HomeScreen(
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold
                             )
-                            Spacer(Modifier.width(48.dp)) // Equilibrio visual
+                            Spacer(Modifier.width(48.dp))
                         } else {
-                            // Título Principal
                             Text(
                                 text = "Categorías de Filtro",
                                 style = MaterialTheme.typography.titleLarge,
@@ -115,14 +124,11 @@ fun HomeScreen(
                             }
                         }
                     }
-
                     HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
-                    // --- CUERPO DEL DIÁLOGO ---
+                    // Cuerpo
                     LazyColumn(modifier = Modifier.weight(1f)) {
-
                         if (selectedCategoryForFilter == null) {
-                            // VISTA A: LISTA DE CATEGORÍAS (Plataforma, Género...)
                             items(availableData.keys.toList()) { category ->
                                 val isActive = when(category) {
                                     "Plataforma" -> activeFilters.platforms.isNotEmpty()
@@ -133,10 +139,9 @@ fun HomeScreen(
                                     "PEGI" -> activeFilters.pegis.isNotEmpty()
                                     "ESRB" -> activeFilters.esrbs.isNotEmpty()
                                     "Metacritic" -> activeFilters.metacriticRanges.isNotEmpty()
-                                    "Año de Lanzamiento" -> activeFilters.releaseYears.isNotEmpty() // Añadido
+                                    "Año de Lanzamiento" -> activeFilters.releaseYears.isNotEmpty()
                                     else -> false
                                 }
-
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -147,28 +152,14 @@ fun HomeScreen(
                                 ) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Text(text = category, style = MaterialTheme.typography.bodyLarge)
-                                        if (isActive) {
-                                            Spacer(Modifier.width(8.dp))
-                                            Badge { Text("!") }
-                                        }
+                                        if (isActive) { Spacer(Modifier.width(8.dp)); Badge { Text("!") } }
                                     }
-                                    Icon(
-                                        Icons.AutoMirrored.Filled.ArrowForwardIos,
-                                        contentDescription = "Ver opciones",
-                                        modifier = Modifier.size(16.dp),
-                                        tint = Color.Gray
-                                    )
+                                    Icon(Icons.AutoMirrored.Filled.ArrowForwardIos, "Ver", modifier = Modifier.size(16.dp), tint = Color.Gray)
                                 }
                                 HorizontalDivider(color = Color.LightGray.copy(alpha = 0.3f))
                             }
-
                         } else {
-                            // VISTA B: LISTA DE OPCIONES (Switch, PS5...)
-                            // 👇 AQUÍ INTEGRAMOS LA SOLUCIÓN DEL CHECK
                             val options = availableData[selectedCategoryForFilter] ?: emptyList()
-
-                            // Usamos un layout FlowRow para que parezcan "etiquetas" o una lista vertical
-                            // En este caso, mantendremos lista vertical pero usando FilterChip para el check bonito.
                             items(options) { option ->
                                 val isSelected = when(selectedCategoryForFilter) {
                                     "Plataforma" -> option in activeFilters.platforms
@@ -182,33 +173,18 @@ fun HomeScreen(
                                     "Año de Lanzamiento" -> option in activeFilters.releaseYears
                                     else -> false
                                 }
-
-                                // Usamos un Row con FilterChip para que tenga el look material
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 4.dp, vertical = 2.dp)
-                                ) {
+                                Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp)) {
                                     FilterChip(
                                         selected = isSelected,
                                         onClick = { viewModel.toggleFilter(selectedCategoryForFilter!!, option) },
                                         label = { Text(option) },
-                                        leadingIcon = if (isSelected) {
-                                            {
-                                                Icon(
-                                                    imageVector = Icons.Default.Check,
-                                                    contentDescription = "Seleccionado",
-                                                    modifier = Modifier.size(FilterChipDefaults.IconSize)
-                                                )
-                                            }
-                                        } else null,
+                                        leadingIcon = if (isSelected) { { Icon(Icons.Default.Check, "Seleccionado", modifier = Modifier.size(FilterChipDefaults.IconSize)) } } else null,
                                         modifier = Modifier.fillMaxWidth()
                                     )
                                 }
                             }
                         }
                     }
-
                     Spacer(modifier = Modifier.height(16.dp))
                     Button(onClick = { showFilterDialog = false }, modifier = Modifier.fillMaxWidth()) {
                         Text("Ver Resultados")
@@ -216,6 +192,10 @@ fun HomeScreen(
                 }
             }
         }
+    }
+
+    if (showUpdateDialog) {
+        UpdateProgressDialog(progress = updateProgress)
     }
 
     // --- SCAFFOLD ---
@@ -256,7 +236,7 @@ fun HomeScreen(
                             Icon(Icons.Default.FilterList, "Filtrar", tint = if (hasFilters) MaterialTheme.colorScheme.primary else LocalContentColor.current)
                         }
                         Box {
-                            IconButton(onClick = { showSortMenu = true }) { Icon(Icons.Default.Sort, "Ordenar") }
+                            IconButton(onClick = { showSortMenu = true }) { Icon(Icons.AutoMirrored.Filled.Sort, "Ordenar") }
                             DropdownMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
                                 DropdownMenuItem(text = { Text("Alfabético") }, onClick = { viewModel.onSortChange(SortOption.TITLE); showSortMenu = false })
                                 DropdownMenuItem(text = { Text("Plataforma") }, onClick = { viewModel.onSortChange(SortOption.PLATFORM); showSortMenu = false })
@@ -272,36 +252,53 @@ fun HomeScreen(
             FloatingActionButton(onClick = onAddGameClick) { Icon(Icons.Default.Add, "Añadir") }
         }
     ) { innerPadding ->
-        if (games.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize().padding(innerPadding), contentAlignment = Alignment.Center) {
-                Text(if (searchText.isNotEmpty() || activeFilters != GameFilters()) "No hay juegos con estos criterios" else "Tu Grimorio está vacío... ¡Añade loot!")
-            }
-        } else {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(3),
-                contentPadding = PaddingValues(
-                    top = innerPadding.calculateTopPadding() + 16.dp,
-                    bottom = innerPadding.calculateBottomPadding() + 80.dp,
-                    start = 8.dp, end = 8.dp
-                ),
-                modifier = Modifier.fillMaxSize()
-            ) {
-                games.forEach { (headerTitle, gamesInGroup) ->
-                    item(span = { GridItemSpan(3) }) {
-                        Text(
-                            text = headerTitle,
-                            style = MaterialTheme.typography.titleLarge,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(top = 24.dp, bottom = 8.dp, start = 8.dp).fillMaxWidth()
-                        )
-                    }
-                    items(gamesInGroup) { game ->
-                        GameCard(
-                            game = game,
-                            onClick = { onGameClick(game.id) },
-                            onLongClick = { gameToDelete = game }
-                        )
+
+        // 👇 AQUI INTEGRAMOS EL PULL TO REFRESH
+        // Envolvemos todo el contenido (Lista o Vacío) en la caja de refresco
+        PullToRefreshBox(
+            isRefreshing = false,
+            onRefresh = { viewModel.refreshLibrary() }, // Asegúrate de tener esta función en tu ViewModel
+            state = pullRefreshState,
+            modifier = Modifier.padding(innerPadding) // El padding del Scaffold va aquí
+        ) {
+            if (games.isEmpty()) {
+                // Hacemos que la caja vacía sea scrolleable para que funcione el gesto de refrescar aunque esté vacía
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState()), // Importante para el gesto
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(if (searchText.isNotEmpty() || activeFilters != GameFilters()) "No hay juegos con estos criterios" else "Tu Grimorio está vacío... ¡Añade loot!")
+                }
+            } else {
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(3),
+                    // Quitamos el innerPadding del contentPadding porque ya lo aplicamos al PullToRefreshBox
+                    contentPadding = PaddingValues(
+                        top = 16.dp,
+                        bottom = 80.dp,
+                        start = 8.dp, end = 8.dp
+                    ),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    games.forEach { (headerTitle, gamesInGroup) ->
+                        item(span = { GridItemSpan(3) }) {
+                            Text(
+                                text = headerTitle,
+                                style = MaterialTheme.typography.titleLarge,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(top = 24.dp, bottom = 8.dp, start = 8.dp).fillMaxWidth()
+                            )
+                        }
+                        items(gamesInGroup) { game ->
+                            GameCard(
+                                game = game,
+                                onClick = { onGameClick(game.id) },
+                                onLongClick = { gameToDelete = game }
+                            )
+                        }
                     }
                 }
             }
@@ -342,6 +339,54 @@ fun GameCard(game: Game, onClick: () -> Unit, onLongClick: () -> Unit) {
             }
             Box(modifier = Modifier.fillMaxWidth().height(80.dp).align(Alignment.BottomCenter).background(Brush.verticalGradient(colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.7f)))))
             Text(text = game.title, modifier = Modifier.align(Alignment.BottomStart).padding(8.dp).fillMaxWidth(), style = MaterialTheme.typography.labelLarge, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Start)
+        }
+    }
+}
+
+@Composable
+fun UpdateProgressDialog(
+    progress: Int
+) {
+    Dialog(onDismissRequest = { /* No dejamos cerrar tocando fuera para que no cancelen el proceso */ }) {
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            elevation = CardDefaults.cardElevation(8.dp),
+            modifier = Modifier.fillMaxWidth().padding(16.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = "Actualizando Biblioteca",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+
+                // Barra de progreso lineal
+                // Convertimos el int (0..100) a float (0.0..1.0) para el componente
+                LinearProgressIndicator(
+                    progress = { progress / 100f },
+                    modifier = Modifier.fillMaxWidth().height(8.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                )
+
+                Text(
+                    text = "$progress%",
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+
+                Text(
+                    text = "Obteniendo últimas notas y datos...",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.Gray
+                )
+            }
         }
     }
 }

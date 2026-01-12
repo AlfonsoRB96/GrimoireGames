@@ -59,6 +59,7 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.foundation)
+    implementation(libs.androidx.material3)
     ksp(libs.androidx.room.compiler)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
@@ -98,4 +99,7 @@ dependencies {
     implementation("com.google.code.gson:gson:2.10.1")
 
     implementation("org.jsoup:jsoup:1.17.2")
+
+    // Google ML Kit Traducción
+    implementation("com.google.mlkit:translate:17.0.2")
 }

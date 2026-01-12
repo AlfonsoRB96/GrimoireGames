@@ -8,6 +8,7 @@ import com.trunder.grimoiregames.data.remote.TwitchAuthApi
 import com.trunder.grimoiregames.data.remote.dto.IgdbGameDto
 import com.trunder.grimoiregames.util.Constants
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.text.SimpleDateFormat
@@ -217,5 +218,45 @@ class GameRepository @Inject constructor(
 
     suspend fun restoreGames(games: List<Game>) {
         gameDao.insertAll(games)
+    }
+
+    fun updateAllGames(): Flow<Int> = flow {
+        // 1. Cogemos todos los juegos
+        val allGames = gameDao.getAllGamesList()
+        val totalGames = allGames.size
+
+        if (totalGames == 0) {
+            emit(100)
+            return@flow
+        }
+
+        var processedCount = 0
+        emit(0) // Empezamos en 0%
+
+        // 2. Iteramos uno a uno
+        for (game in allGames) {
+            try {
+                // Actualizamos el juego (IGDB + Scraper)
+                fetchAndSaveGameDetails(game)
+
+                // Pausa técnica para no saturar la API
+                kotlinx.coroutines.delay(200)
+
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+
+            // 3. Calculamos y emitimos el nuevo porcentaje
+            processedCount++
+            val percentage = ((processedCount.toFloat() / totalGames) * 100).toInt()
+            emit(percentage)
+        }
+    }
+
+    // 👇 ESTA ES LA FUNCIÓN QUE TE FALTA
+    // Guarda un juego directamente en la BD sin buscarlo en internet.
+    // Necesaria para la restauración de copias de seguridad (Backup).
+    suspend fun insertGame(game: Game) {
+        gameDao.insertGame(game)
     }
 }

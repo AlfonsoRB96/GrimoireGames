@@ -24,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -210,20 +211,12 @@ fun GameDetailScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // --- PUNTUACIÓN (Estrellas o Slider) ---
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Star, contentDescription = null, tint = Color(0xFFFFC107))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Puntuación: ${currentSafeGame.rating ?: 0}/10",
-                            style = MaterialTheme.typography.bodyLarge
-                        )
-                    }
-                    Slider(
-                        value = (currentSafeGame.rating ?: 0).toFloat(),
-                        onValueChange = { viewModel.updateRating(currentSafeGame, it.toInt()) },
-                        valueRange = 0f..10f,
-                        steps = 9
+                    // --- NUEVO SISTEMA DE TIERS ---
+                    TierSelector(
+                        currentRating = currentSafeGame.rating,
+                        onTierSelected = { newRating ->
+                            viewModel.updateRating(currentSafeGame, newRating)
+                        }
                     )
 
                     Spacer(modifier = Modifier.height(16.dp))
@@ -498,6 +491,82 @@ fun ScoreRow(sourceName: String, pressScore: Int?, userScore: Int?, color: Color
         // Nota Usuario
         Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
             ScorePill(score = userScore, isPress = false)
+        }
+    }
+}
+
+@Composable
+fun TierSelector(
+    currentRating: Int?,
+    onTierSelected: (Int) -> Unit
+) {
+    // Definimos los Tiers: Texto, Valor numérico y Color
+    data class Tier(val label: String, val value: Int, val color: Color)
+
+    val tiers = listOf(
+        Tier("S+", 10, Color(0xFFFF7F7F)), // Rojo salmón
+        Tier("S", 9, Color(0xFFFFBF7F)),   // Naranja suave
+        Tier("A", 8, Color(0xFFFFDF7F)),   // Amarillo anaranjado
+        Tier("B", 7, Color(0xFFC6EF88)),   // Verde lima
+        Tier("C", 5, Color(0xFFFFFFA1)),   // Amarillo pálido
+        Tier("D", 3, Color(0xFFD3D3D3))    // Gris
+    )
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text("Tu Puntuación (Tier)", style = MaterialTheme.typography.labelLarge)
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            tiers.forEach { tier ->
+                // Lógica: Si la nota coincide (o se acerca), está activo.
+                // Usamos un rango pequeño para agrupar notas antiguas si tenías un 6, por ejemplo.
+                val isSelected = currentRating == tier.value
+
+                TierBadge(
+                    text = tier.label,
+                    color = tier.color,
+                    isSelected = isSelected,
+                    onClick = { onTierSelected(tier.value) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun TierBadge(
+    text: String,
+    color: Color,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    // Si no está seleccionado, lo mostramos gris apagado y con transparencia
+    val backgroundColor = if (isSelected) color else Color.LightGray.copy(alpha = 0.3f)
+    val textColor = if (isSelected) Color.Black.copy(alpha = 0.8f) else Color.Gray
+    val border = if (isSelected) BorderStroke(2.dp, Color.Black.copy(alpha = 0.5f)) else null
+    val elevation = if (isSelected) 6.dp else 0.dp
+    val scale = if (isSelected) 1.1f else 1.0f
+
+    Surface(
+        color = backgroundColor,
+        shape = RoundedCornerShape(8.dp),
+        border = border,
+        shadowElevation = elevation,
+        modifier = Modifier
+            .size(width = 48.dp, height = 48.dp) // Cuadrados uniformes
+            .clickable { onClick() }
+            .graphicsLayer(scaleX = scale, scaleY = scale) // Efecto pop
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = textColor
+            )
         }
     }
 }

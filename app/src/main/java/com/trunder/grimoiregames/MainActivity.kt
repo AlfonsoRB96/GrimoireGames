@@ -7,7 +7,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.trunder.grimoiregames.ui.addgame.AddGameScreen
-import com.trunder.grimoiregames.ui.library.HomeScreen
+import com.trunder.grimoiregames.ui.library.LibraryScreen
 import com.trunder.grimoiregames.ui.theme.GrimoireGamesTheme
 import dagger.hilt.android.AndroidEntryPoint
 import androidx.navigation.NavType
@@ -41,7 +41,7 @@ class MainActivity : ComponentActivity() {
 
                     // RUTA 2: BIBLIOTECA
                     composable("library") {
-                        HomeScreen(
+                        LibraryScreen(
                             onAddGameClick = { navController.navigate("add_game") },
                             // ¡NUEVO! Al hacer clic en un juego, vamos a "detail/ID"
                             onGameClick = { gameId ->
