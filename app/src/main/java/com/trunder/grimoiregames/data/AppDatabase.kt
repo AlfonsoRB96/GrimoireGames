@@ -8,7 +8,7 @@ import com.trunder.grimoiregames.data.dao.GameDao
 import com.trunder.grimoiregames.data.entity.Game
 
 // 1. Definimos las tablas (entities) y la versión de la BBDD.
-@Database(entities = [Game::class], version = 2, exportSchema = false)
+@Database(entities = [Game::class], version = 3, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
 
     // 2. Exponemos los DAOs

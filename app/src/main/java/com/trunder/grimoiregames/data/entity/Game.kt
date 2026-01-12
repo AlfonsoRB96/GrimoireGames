@@ -20,8 +20,7 @@ data class Game(
     val publisher: String? = null,  // Ej: "SEGA"
     val userRating: Int? = null,
     val releaseDate: String? = null, // Ej: "2017-02-23"
-    val pegi: String? = null,       // Ej: "3", "7", "12", "16", "18"
-    val esrb: String? = null,        // Ej: "E", "T", "M", "AO"
+    val ageRating: String? = null,
     val igdbPress: Int? = null,
     val igdbUser: Int? = null,
     val metacriticPress: Int? = null,

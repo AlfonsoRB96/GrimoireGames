@@ -136,8 +136,7 @@ fun LibraryScreen(
                                     "Estado" -> activeFilters.statuses.isNotEmpty()
                                     "Desarrolladora" -> activeFilters.developers.isNotEmpty()
                                     "Distribuidora" -> activeFilters.publishers.isNotEmpty()
-                                    "PEGI" -> activeFilters.pegis.isNotEmpty()
-                                    "ESRB" -> activeFilters.esrbs.isNotEmpty()
+                                    "Clasificación por edades" -> activeFilters.ageRatings.isNotEmpty()
                                     "Metacritic" -> activeFilters.metacriticRanges.isNotEmpty()
                                     "Año de Lanzamiento" -> activeFilters.releaseYears.isNotEmpty()
                                     else -> false
@@ -167,8 +166,7 @@ fun LibraryScreen(
                                     "Estado" -> option in activeFilters.statuses
                                     "Desarrolladora" -> option in activeFilters.developers
                                     "Distribuidora" -> option in activeFilters.publishers
-                                    "PEGI" -> option in activeFilters.pegis
-                                    "ESRB" -> option in activeFilters.esrbs
+                                    "Clasificación por edades" -> option in activeFilters.ageRatings
                                     "Metacritic" -> option in activeFilters.metacriticRanges
                                     "Año de Lanzamiento" -> option in activeFilters.releaseYears
                                     else -> false

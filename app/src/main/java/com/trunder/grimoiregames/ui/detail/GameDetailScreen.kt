@@ -61,22 +61,6 @@ fun GameDetailScreen(
                     containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
                 )
             )
-        },
-        floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = {
-                    Toast.makeText(
-                        context,
-                        "¡Cambios guardados correctamente!",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                    onBackClick()
-                },
-                icon = { Icon(Icons.Default.Save, "Guardar") },
-                text = { Text("Guardar") },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
-            )
         }
     ) { padding ->
         game?.let { currentSafeGame ->
@@ -231,8 +215,17 @@ fun GameDetailScreen(
                     // 5. DATOS TÉCNICOS
                     TechnicalDataRow(label = "Desarrollador", value = currentSafeGame.developer)
                     TechnicalDataRow(label = "Editor", value = currentSafeGame.publisher)
-                    // C. PEGI (Se mantiene igual)
-                    AgeRatingBadge(game = currentSafeGame)
+                    // C. CLASIFICACION POR EDADES
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Clasificación", color = Color.Gray)
+
+                        // 👇 AQUÍ VA EL BADGE
+                        AgeRatingBadge(ratingString = currentSafeGame.ageRating)
+                    }
 
                     HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
 
@@ -276,12 +269,19 @@ fun GameDetailScreen(
 
                     // --- HORAS DE JUEGO ---
                     OutlinedTextField(
-                        value = currentSafeGame.hoursPlayed?.toString() ?: "0",
+                        // LÓGICA: Si es 0 o null, ponemos texto vacío "" para que no moleste.
+                        // Si tiene horas (ej: 15), mostramos "15".
+                        value = if ((currentSafeGame.hoursPlayed ?: 0) == 0) "" else currentSafeGame.hoursPlayed.toString(),
+
                         onValueChange = { newValue ->
-                            val hours = newValue.toIntOrNull() ?: 0
-                            viewModel.updateHours(currentSafeGame, hours)
+                            // Solo dejamos escribir números (evitamos letras o símbolos)
+                            if (newValue.all { it.isDigit() }) {
+                                val hours = newValue.toIntOrNull() ?: 0
+                                viewModel.updateHours(currentSafeGame, hours)
+                            }
                         },
                         label = { Text("Horas Jugadas") },
+                        placeholder = { Text("0") }, // Esto se ve clarito cuando está vacío
                         modifier = Modifier.fillMaxWidth(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         prefix = { Icon(Icons.Default.Timer, null) }
@@ -331,53 +331,38 @@ fun InfoItem(label: String, value: String, isBadge: Boolean = false) {
 }
 
 @Composable
-fun AgeRatingBadge(game: Game) {
-    // Recuperamos el dato real tal cual viene de la BD / RAWG
-    val ratingText = game.pegi ?: game.esrb
+fun AgeRatingBadge(ratingString: String?) {
+    if (ratingString == null) return
 
-    if (ratingText != null) {
-        val color = when {
-            // --- VERDE (Apto para todos) ---
-            // PEGI 3 / ESRB Everyone
-            ratingText.contains("3") || ratingText.contains("Everyone", ignoreCase = true) ->
-                Color(0xFF4CAF50)
+    // Lógica de colores según el texto
+    val color = when {
+        // VERDE (Apto para todos)
+        ratingString.contains("PEGI 3") || ratingString.contains("PEGI 7") ||
+                ratingString.contains("ESRB E") || ratingString.contains("CERO A") -> Color(0xFF4CAF50)
 
-            // --- AMARILLO (Mayores de 7/10) ---
-            // PEGI 7 / ESRB Everyone 10+
-            ratingText.contains("7") || ratingText.contains("10") ->
-                Color(0xFFFFC107)
+        // AMARILLO/NARANJA (Adolescentes)
+        ratingString.contains("PEGI 12") || ratingString.contains("PEGI 16") ||
+                ratingString.contains("ESRB T") || ratingString.contains("CERO B") || ratingString.contains("CERO C") -> Color(0xFFFFC107)
 
-            // --- NARANJA (Adolescentes) ---
-            // PEGI 12 / ESRB Teen
-            ratingText.contains("12") || ratingText.contains("Teen", ignoreCase = true) ->
-                Color(0xFFFF9800)
+        // ROJO (Adultos)
+        ratingString.contains("PEGI 18") || ratingString.contains("ESRB M") ||
+                ratingString.contains("CERO D") || ratingString.contains("CERO Z") -> Color(0xFFF44336)
 
-            // --- ROJO (Maduro) ---
-            // PEGI 16 / ESRB Mature
-            ratingText.contains("16") || ratingText.contains("Mature", ignoreCase = true) ->
-                Color(0xFFF44336)
+        else -> Color.Gray
+    }
 
-            // --- NEGRO (Adultos) ---
-            // PEGI 18 / ESRB Adults Only
-            ratingText.contains("18") || ratingText.contains("Adults", ignoreCase = true) ->
-                Color.Black
-
-            else -> Color.Gray
-        }
-
-        Surface(
-            color = color,
-            shape = RoundedCornerShape(4.dp),
-            modifier = Modifier.padding(start = 8.dp)
-        ) {
-            Text(
-                text = ratingText, // 👈 Mostramos el texto REAL (Ej: "Mature")
-                color = Color.White,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-            )
-        }
+    Surface(
+        color = color, // Fondo de color sólido
+        shape = RoundedCornerShape(4.dp),
+        modifier = Modifier.padding(start = 8.dp)
+    ) {
+        Text(
+            text = ratingString,
+            color = Color.White, // Texto blanco para contraste
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+        )
     }
 }
 

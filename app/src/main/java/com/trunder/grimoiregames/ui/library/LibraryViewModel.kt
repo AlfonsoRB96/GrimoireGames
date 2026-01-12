@@ -23,8 +23,7 @@ data class GameFilters(
     val developers: Set<String> = emptySet(),
     val publishers: Set<String> = emptySet(),
     val statuses: Set<String> = emptySet(),
-    val pegis: Set<String> = emptySet(),
-    val esrbs: Set<String> = emptySet(),
+    val ageRatings: Set<String> = emptySet(),
     val metacriticRanges: Set<String> = emptySet(),
     val releaseYears: Set<String> = emptySet()
 )
@@ -53,8 +52,7 @@ class LibraryViewModel @Inject constructor(
             "Estado" to listOf("Playing", "Completed", "Backlog"),
             "Desarrolladora" to games.mapNotNull { it.developer }.filter { it.isNotBlank() }.distinct().sorted(),
             "Distribuidora" to games.mapNotNull { it.publisher }.filter { it.isNotBlank() }.distinct().sorted(),
-            "PEGI" to games.mapNotNull { it.pegi }.filter { it.isNotBlank() }.distinct().sorted(),
-            "ESRB" to games.mapNotNull { it.esrb }.filter { it.isNotBlank() }.distinct().sorted(),
+            "Clasificacion por edades" to games.mapNotNull { it.ageRating }.filter { it.isNotBlank() }.distinct().sorted(),
             "Metacritic" to listOf("90+ (Obra Maestra)", "75-89 (Muy Bueno)", "50-74 (Mixto)", "0-49 (Malo)", "N/A (Sin puntuación"),
             "Año de Lanzamiento" to games.mapNotNull {
                 it.releaseDate?.take(4)
@@ -133,12 +131,8 @@ class LibraryViewModel @Inject constructor(
             result = result.filter { it.publisher != null && it.publisher in currentFilters.publishers }
         }
 
-        if (currentFilters.pegis.isNotEmpty()) {
-            result = result.filter { it.pegi != null && it.pegi in currentFilters.pegis }
-        }
-
-        if (currentFilters.esrbs.isNotEmpty()) {
-            result = result.filter { it.esrb != null && it.esrb in currentFilters.esrbs }
+        if (currentFilters.ageRatings.isNotEmpty()) {
+            result = result.filter { it.ageRating != null && it.ageRating in currentFilters.ageRatings }
         }
 
         // 3. LÓGICA ESPECIAL PARA METACRITIC
@@ -209,8 +203,7 @@ class LibraryViewModel @Inject constructor(
             "Estado" -> current.copy(statuses = toggleSet(current.statuses, value))
             "Desarrolladora" -> current.copy(developers = toggleSet(current.developers, value))
             "Distribuidora" -> current.copy(publishers = toggleSet(current.publishers, value))
-            "PEGI" -> current.copy(pegis = toggleSet(current.pegis, value))
-            "ESRB" -> current.copy(esrbs = toggleSet(current.esrbs, value))
+            "Clasificación por edades" -> current.copy(ageRatings = toggleSet(current.ageRatings, value))
             "Metacritic" -> current.copy(metacriticRanges = toggleSet(current.metacriticRanges, value))
             "Año de Lanzamiento" -> current.copy(releaseYears = toggleSet(current.releaseYears, value))
             else -> current

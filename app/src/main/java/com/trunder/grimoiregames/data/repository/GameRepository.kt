@@ -5,6 +5,7 @@ import com.trunder.grimoiregames.data.entity.Game
 import com.trunder.grimoiregames.data.remote.IgdbApi
 import com.trunder.grimoiregames.data.remote.MetacriticScraper
 import com.trunder.grimoiregames.data.remote.TwitchAuthApi
+import com.trunder.grimoiregames.data.remote.dto.AgeRatingDto
 import com.trunder.grimoiregames.data.remote.dto.IgdbGameDto
 import com.trunder.grimoiregames.util.Constants
 import kotlinx.coroutines.flow.Flow
@@ -14,6 +15,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import java.text.SimpleDateFormat
 import java.util.*
 import javax.inject.Inject
+import kotlin.collections.isNullOrEmpty
 
 class GameRepository @Inject constructor(
     private val gameDao: GameDao,
@@ -42,64 +44,73 @@ class GameRepository @Inject constructor(
     suspend fun searchGames(query: String): List<IgdbGameDto> {
         val token = getValidToken()
 
-        // Esta query pide campos específicos, busca por nombre y filtra versiones raras
-        val bodyString = """
-            search "$query";
-            fields name, cover.url, first_release_date, total_rating, genres.name, platforms.name, summary, involved_companies.company.name, involved_companies.developer, involved_companies.publisher, age_ratings.category, age_ratings.rating;
-            where version_parent = null; 
-            limit 20;
-        """.trimIndent()
+        // 👇 CAMBIO: Quitamos el ".*" de age_ratings.
+        // Solo pedimos los IDs para que la lista cargue rápido y no falle.
+        val bodyString = "search \"$query\"; fields name, cover.url, first_release_date, total_rating, genres.name, platforms.name, summary, involved_companies.company.name, involved_companies.developer, involved_companies.publisher, age_ratings; where version_parent = null; limit 20;"
 
         val body = bodyString.toRequestBody("text/plain".toMediaTypeOrNull())
 
         return igdbApi.getGames(Constants.IGDB_CLIENT_ID, token, body)
     }
 
-    // --- AÑADIR JUEGO (Mapeo completo) ---
+    // --- AÑADIR JUEGO (Mapeo completo con Doble Llamada) ---
     suspend fun addGame(igdbId: Int, selectedPlatform: String) {
-        // LOG 1: Ver si entra a la función
         android.util.Log.d("DEBUG_APP", "🎬 Iniciando addGame para ID: $igdbId")
 
         val token = getValidToken()
 
-        val bodyString = """
-            fields name, cover.url, first_release_date, rating, aggregated_rating, genres.name, platforms.name, summary, involved_companies.company.name, involved_companies.developer, involved_companies.publisher, age_ratings.category, age_ratings.rating;
-            where id = $igdbId;
-        """.trimIndent()
+        // 1. PRIMERA LLAMADA: Pedimos el juego (age_ratings vendrá como lista de IDs)
+        val bodyString = "fields name, cover.url, first_release_date, rating, aggregated_rating, genres.name, platforms.name, summary, involved_companies.company.name, involved_companies.developer, involved_companies.publisher, age_ratings; where id = $igdbId;"
 
         val body = bodyString.toRequestBody("text/plain".toMediaTypeOrNull())
 
         try {
-            // LOG 2: Antes de llamar a la API
-            android.util.Log.d("DEBUG_APP", "🌍 Llamando a IGDB...")
+            android.util.Log.d("DEBUG_APP", "🌍 Llamando a IGDB (Fase 1)...")
 
             val games = igdbApi.getGames(Constants.IGDB_CLIENT_ID, token, body)
-
-            // LOG 3: Ver si la API devuelve algo
-            android.util.Log.d("DEBUG_APP", "📦 Respuesta recibida. Juegos encontrados: ${games.size}")
-
             val details = games.firstOrNull()
+
             if (details == null) {
                 android.util.Log.e("DEBUG_APP", "❌ ERROR: La lista de juegos vino vacía.")
                 return
             }
 
-            // Usamos el nombre limpio de IGDB y la plataforma seleccionada
+            // --- FASE 2: EL FRANCOTIRADOR (Buscar detalles de edad) ---
+            var finalAgeRatings: List<AgeRatingDto>? = null
+
+            // Si el juego tiene IDs de edad...
+            if (!details.ageRatings.isNullOrEmpty()) {
+                val ids = details.ageRatings.joinToString(",") // Ej: "105532,112550"
+                android.util.Log.d("DEBUG_APP", "🕵️ IDs de edad encontrados: $ids. Buscando detalles...")
+
+                // Usamos el comodín (*) para que IGDB no nos oculte nada
+                val ratingQuery = "fields *; where id = ($ids);"
+                val ratingBody = ratingQuery.toRequestBody("text/plain".toMediaTypeOrNull())
+
+                // Llamada al endpoint específico
+                val fetchedRatings = igdbApi.getAgeRatingDetails(Constants.IGDB_CLIENT_ID, token, ratingBody)
+
+                if (fetchedRatings.isNotEmpty()) {
+                    android.util.Log.d("DEBUG_APP", "✅ Edad recuperada: ${fetchedRatings.size} registros.")
+                    finalAgeRatings = fetchedRatings
+                }
+            }
+            // ----------------------------------------------------------
+
+            // Scraper y Mapeo normal
             val scrapeResult = MetacriticScraper.scrapScores(details.name, selectedPlatform)
 
-            // Mapeo (resumido para no ocupar mucho)
             val hdImageUrl = details.cover?.url?.replace("t_thumb", "t_cover_big")?.let { "https:$it" }
             val releaseDateStr = details.firstReleaseDate?.let {
                 java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date(it * 1000))
             }
 
-            // LOG 4: Datos procesados
             android.util.Log.d("DEBUG_APP", "✅ Datos procesados. Preparando inserción en BD...")
 
             val newGame = Game(
                 rawgId = details.id,
                 title = details.name,
-                platform = selectedPlatform, // Usamos la que elegiste
+                platform = selectedPlatform,
                 status = "Backlog",
                 imageUrl = hdImageUrl,
                 description = details.summary,
@@ -112,67 +123,77 @@ class GameRepository @Inject constructor(
                 genre = details.genres?.firstOrNull()?.name ?: "Desconocido",
                 developer = details.involvedCompanies?.find { it.developer }?.company?.name ?: "Desconocido",
                 publisher = details.involvedCompanies?.find { it.publisher }?.company?.name ?: "Desconocido",
-                // Mapeo seguro de nulls para ESRB/PEGI
-                esrb = mapEsrbIdToText(details.ageRatings?.find { it.category == 1 }?.rating),
-                pegi = mapPegiIdToText(details.ageRatings?.find { it.category == 2 }?.rating)
+
+                // 👇 AQUÍ PASAMOS LA LISTA OBTENIDA EN LA FASE 2
+                ageRating = resolveAgeRating(finalAgeRatings)
             )
 
-            // LOG 5: Intentando guardar
             gameDao.insertGame(newGame)
-            android.util.Log.d("DEBUG_APP", "🎉 ¡ÉXITO! Juego guardado en Room.")
+            android.util.Log.d("DEBUG_APP", "🎉 ¡ÉXITO! Juego guardado en Room con edad: ${newGame.ageRating}")
 
         } catch (e: Exception) {
-            // LOG DE ERROR: ESTO ES LO QUE NECESITAMOS VER
             android.util.Log.e("DEBUG_APP", "💀 ERROR CRÍTICO al guardar: ${e.message}")
             e.printStackTrace()
         }
     }
 
-    // 👇 FUNCIÓN RECUPERADA Y ADAPTADA A IGDB
-    // Sirve para refrescar los datos (nota, fecha, etc.) cuando entras al detalle
     suspend fun fetchAndSaveGameDetails(game: Game) {
         val token = getValidToken()
 
-        // 👇 CORRECCIÓN:
-        // 1. Usamos ${game.rawgId} porque el ID está dentro del objeto Game.
-        // 2. Pedimos 'rating' y 'aggregated_rating'.
-        val bodyString = """
-            fields name, cover.url, first_release_date, rating, aggregated_rating, genres.name, platforms.name, summary, involved_companies.company.name, involved_companies.developer, involved_companies.publisher, age_ratings.category, age_ratings.rating;
-            where id = ${game.rawgId};
-        """.trimIndent()
+        // 1. PRIMERA LLAMADA: Pedimos el juego (ahora age_ratings se guardará como lista de IDs)
+        // Nota: Quitamos "age_ratings.category" y dejamos solo "age_ratings"
+        val gameQuery = "fields name,cover.url,first_release_date,rating,aggregated_rating,genres.name,platforms.name,summary,involved_companies.company.name,involved_companies.developer,involved_companies.publisher,age_ratings; where id = ${game.rawgId};"
 
-        val body = bodyString.toRequestBody("text/plain".toMediaTypeOrNull())
+        val gameBody = gameQuery.toRequestBody("text/plain".toMediaTypeOrNull())
 
         try {
-            val games = igdbApi.getGames(Constants.IGDB_CLIENT_ID, token, body)
+            // Esto ahora funcionará porque IgdbGameDto espera List<Long>
+            val games = igdbApi.getGames(Constants.IGDB_CLIENT_ID, token, gameBody)
             val details = games.firstOrNull() ?: return
 
+            // --- FASE 2: EL FRANCOTIRADOR ---
+            var finalAgeRatings: List<AgeRatingDto>? = null
+
+            // Si recibimos IDs de edad (la lista de Longs no está vacía)
+            if (!details.ageRatings.isNullOrEmpty()) {
+                val ids = details.ageRatings.joinToString(",") // "205404,166648"
+
+                android.util.Log.d("GRIMOIRE", "🚀 IDs recibidos: $ids. Buscando detalles...")
+
+                // Hacemos la llamada al endpoint específico de edades
+                val ratingQuery = "fields *; where id = ($ids);"
+                val ratingBody = ratingQuery.toRequestBody("text/plain".toMediaTypeOrNull())
+
+                // Esta llamada devuelve List<AgeRatingDto>, así que usamos esa clase
+                val fetchedRatings = igdbApi.getAgeRatingDetails(Constants.IGDB_CLIENT_ID, token, ratingBody)
+
+                if (fetchedRatings.isNotEmpty()) {
+                    android.util.Log.d("GRIMOIRE", "✅ Detalles recuperados: ${fetchedRatings.size} ratings.")
+                    finalAgeRatings = fetchedRatings
+                }
+            }
+            // -------------------------------
+
+            // Mapeo y Guardado
             val scrapeResult = MetacriticScraper.scrapScores(details.name, game.platform)
-
-            // Mapeo (Imagen HD, Fecha, etc...)
             val hdImageUrl = details.cover?.url?.replace("t_thumb", "t_cover_big")?.let { "https:$it" }
-
             val releaseDateStr = details.firstReleaseDate?.let {
                 java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date(it * 1000))
             }
 
-            // Actualizamos el juego
             val updatedGame = game.copy(
                 description = details.summary,
-                // 👇 ACTUALIZAMOS LAS DOS NOTAS
-                igdbPress = details.aggregatedRating?.toInt(), // Prensa
-                igdbUser = details.rating?.toInt(),           // Usuarios
+                igdbPress = details.aggregatedRating?.toInt(),
+                igdbUser = details.rating?.toInt(),
                 metacriticPress = scrapeResult.metaScore,
                 metacriticUser = scrapeResult.userScore,
-                opencriticPress = null,
                 releaseDate = releaseDateStr,
                 genre = details.genres?.firstOrNull()?.name ?: "Desconocido",
                 developer = details.involvedCompanies?.find { it.developer }?.company?.name ?: "Desconocido",
                 publisher = details.involvedCompanies?.find { it.publisher }?.company?.name ?: "Desconocido",
 
-                // Mapeo de PEGI/ESRB
-                esrb = mapEsrbIdToText(details.ageRatings?.find { it.category == 1 }?.rating),
-                pegi = mapPegiIdToText(details.ageRatings?.find { it.category == 2 }?.rating),
+                // 👇 Pasamos la lista de objetos que conseguimos en la fase 2
+                ageRating = resolveAgeRating(finalAgeRatings),
 
                 imageUrl = hdImageUrl ?: game.imageUrl
             )
@@ -180,6 +201,7 @@ class GameRepository @Inject constructor(
             gameDao.updateGame(updatedGame)
 
         } catch (e: Exception) {
+            android.util.Log.e("GRIMOIRE", "Error: ${e.message}")
             e.printStackTrace()
         }
     }
@@ -188,29 +210,45 @@ class GameRepository @Inject constructor(
     suspend fun updateGame(game: Game) = gameDao.updateGame(game)
     fun getGameById(id: Int) = gameDao.getGameById(id)
 
-    // --- HELPERS DE MAPEO (IGDB usa números para las edades) ---
-    private fun mapPegiIdToText(id: Int?): String? {
-        return when (id) {
-            1 -> "PEGI 3"
-            2 -> "PEGI 7"
-            3 -> "PEGI 12"
-            4 -> "PEGI 16"
-            5 -> "PEGI 18"
-            else -> null
-        }
-    }
+    // --- MAPEO INTELIGENTE DE EDAD ---
+    private fun resolveAgeRating(ratings: List<AgeRatingDto>?): String? {
+        if (ratings.isNullOrEmpty()) return null
 
-    private fun mapEsrbIdToText(id: Int?): String? {
-        return when (id) {
-            6 -> "RP" // Rating Pending
-            7 -> "EC" // Early Childhood
-            8 -> "E"  // Everyone
-            9 -> "E10+" // Everyone 10+
-            10 -> "T" // Teen
-            11 -> "M" // Mature
-            12 -> "AO" // Adults Only
-            else -> null
+        ratings.forEach {
+            // 👇 TRUCO: Unificamos los nombres aquí
+            val cat = it.category ?: it.organization
+            val rat = it.rating ?: it.ratingCategory
+
+            android.util.Log.d("GRIMOIRE", "👉 Revisando rating -> Cat: $cat | Rat: $rat")
+
+            // 1. BUSCAR PEGI (Europa) -> Suele ser categoría 2
+            if (cat == 2) {
+                return when (rat) {
+                    1 -> "PEGI 3"
+                    2 -> "PEGI 7"
+                    3 -> "PEGI 12"
+                    4 -> "PEGI 16"
+                    5 -> "PEGI 18"
+                    // A veces devuelve números raros como 12, 26, etc.
+                    // Si ves en el log "Cat: 2 | Rat: 12", añade aquí: 12 -> "PEGI X"
+                    else -> "PEGI ($rat)"
+                }
+            }
+
+            // 2. BUSCAR ESRB (USA) -> Suele ser categoría 1
+            if (cat == 1) {
+                return when (rat) {
+                    6 -> "ESRB RP"
+                    8 -> "ESRB E"
+                    9 -> "ESRB 10+"
+                    10 -> "ESRB T"
+                    11 -> "ESRB M"
+                    12 -> "ESRB AO"
+                    else -> "ESRB ($rat)"
+                }
+            }
         }
+        return null
     }
 
     // Funciones para Backup/Restore

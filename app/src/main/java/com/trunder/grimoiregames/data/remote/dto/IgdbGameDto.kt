@@ -26,7 +26,7 @@ data class IgdbGameDto(
     val involvedCompanies: List<IgdbCompanyWrapperDto>?, // Desarrolladores/Publishers
 
     @SerializedName("age_ratings")
-    val ageRatings: List<IgdbAgeRatingDto>? // PEGI y ESRB
+    val ageRatings: List<Long>? // PEGI y ESRB
 )
 
 data class IgdbImageDto(
