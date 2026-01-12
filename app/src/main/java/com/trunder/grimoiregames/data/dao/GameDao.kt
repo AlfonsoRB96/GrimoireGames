@@ -37,4 +37,12 @@ interface GameDao {
     // ¡NUEVO! 👇 Para guardar los cambios de nota y horas
     @Update
     suspend fun updateGame(game: Game)
+
+    // Para el Backup: Saca todos los juegos de una vez
+    @Query("SELECT * FROM games")
+    suspend fun getAllGamesList(): List<Game>
+
+    // Para el Restore: Inserta una lista entera (sobrescribiendo si hay conflicto)
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(games: List<Game>)
 }

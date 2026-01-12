@@ -200,4 +200,11 @@ class GameRepository @Inject constructor(
             else -> null
         }
     }
+
+    // Funciones para Backup/Restore
+    suspend fun getAllGamesSync(): List<Game> = gameDao.getAllGamesList()
+
+    suspend fun restoreGames(games: List<Game>) {
+        gameDao.insertAll(games)
+    }
 }

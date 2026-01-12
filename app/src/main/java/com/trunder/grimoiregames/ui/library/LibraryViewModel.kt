@@ -1,4 +1,4 @@
-package com.trunder.grimoiregames.ui.home
+package com.trunder.grimoiregames.ui.library
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
