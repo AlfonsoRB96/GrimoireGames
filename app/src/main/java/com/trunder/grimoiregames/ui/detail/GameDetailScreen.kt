@@ -624,15 +624,25 @@ fun TierBadge(
 
 @Composable
 fun RegionBadge(region: String) {
+    val (containerColor, contentColor) = when (region) {
+        "NTSC-J" -> MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer // Rojo (Japón)
+        "NTSC-U" -> MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer // Azul/Morado (USA)
+        "PAL DE" -> Color(0xFFFFF3E0) to Color(0xFFE65100) // Naranja (Alemania/USK)
+        "PAL AU" -> Color(0xFFE0F2F1) to Color(0xFF00695C) // Verde azulado (Australia)
+        "NTSC-K" -> Color(0xFFE8EAF6) to Color(0xFF283593) // Indigo (Corea)
+        else -> MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer // PAL EU (Standard)
+    }
+
     Surface(
-        color = MaterialTheme.colorScheme.tertiaryContainer, // Un color diferente para distinguir
-        shape = RoundedCornerShape(4.dp),
-        modifier = Modifier.padding(start = 8.dp) // Un poco de margen si lo pones al lado de otro texto
+        color = containerColor,
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, contentColor.copy(alpha = 0.2f))
     ) {
         Text(
             text = region,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onTertiaryContainer,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+            color = contentColor,
             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
         )
     }

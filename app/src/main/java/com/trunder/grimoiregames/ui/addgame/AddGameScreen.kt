@@ -2,6 +2,7 @@ package com.trunder.grimoiregames.ui.addgame
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -145,25 +146,44 @@ fun AddGameScreen(
                         Text("Juego: ${game.name}")
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        // 👇 1. SELECTOR DE REGIÓN
+                        // 👇 1. SELECTOR DE REGIÓN (AMPLIADO)
                         Text(
-                            text = "1. Elige Región:",
+                            text = "1. Elige la versión (Región):",
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
                         )
                         Spacer(modifier = Modifier.height(8.dp))
 
+                        // Lista de todas las regiones posibles
+                        val regions = listOf(
+                            "PAL" to "PEGI",
+                            "NTSC-U" to "ESRB",
+                            "NTSC-J" to "CERO",
+                            "PAL DE" to "USK",
+                            "PAL AU" to "ACB",
+                            "NTSC-K" to "GRAC",
+                            "NTSC-BR" to "ClassInd"
+                        )
+
+                        // Fila deslizante
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceEvenly
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()), // 👈 Permite deslizar si no caben
+                            horizontalArrangement = Arrangement.spacedBy(8.dp) // Espacio entre botones
                         ) {
-                            regions.forEach { region ->
-                                val isSelected = region == selectedRegion
+                            regions.forEach { (regionCode, agency) ->
+                                val isSelected = (selectedRegion == regionCode)
                                 FilterChip(
                                     selected = isSelected,
-                                    onClick = { selectedRegion = region },
-                                    label = { Text(region) },
+                                    onClick = { selectedRegion = regionCode },
+                                    label = {
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                            Text(text = regionCode, style = MaterialTheme.typography.labelMedium)
+                                            Text(text = "($agency)", style = MaterialTheme.typography.labelSmall)
+                                        }
+                                    },
                                     colors = FilterChipDefaults.filterChipColors(
                                         selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
                                         selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer

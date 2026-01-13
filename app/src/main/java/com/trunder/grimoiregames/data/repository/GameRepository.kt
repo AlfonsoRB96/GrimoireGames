@@ -212,59 +212,64 @@ class GameRepository @Inject constructor(
     fun getGameById(id: Int) = gameDao.getGameById(id)
 
     // --- MAPEO INTELIGENTE DE EDAD ---
-    // --- MAPEO DE EDAD BASADO EN REGIÓN ---
+    // --- MAPEO DE EDAD BASADO EN REGIÓN (GLOBAL) ---
     private fun resolveAgeRating(ratings: List<AgeRatingDto>?, targetRegion: String): String? {
         if (ratings.isNullOrEmpty()) return null
 
-        // Función auxiliar para leer datos
         fun getInfo(dto: AgeRatingDto): Pair<Int, Int> {
             val cat = dto.category ?: dto.organization ?: -1
             val rat = dto.rating ?: dto.ratingCategory ?: -1
             return Pair(cat, rat)
         }
 
-        // Definimos qué ID de organización buscamos según la región
-        // 1=ESRB, 2=PEGI, 3=CERO
+        // DICCIONARIO DE ORGANIZACIONES IGDB
+        // 1=ESRB, 2=PEGI, 3=CERO, 4=USK, 5=GRAC, 6=ClassInd, 7=ACB
         val targetOrgId = when (targetRegion) {
-            "PAL" -> 2      // Europa -> PEGI
-            "NTSC-U" -> 1   // USA -> ESRB
-            "NTSC-J" -> 3   // Japón -> CERO
-            else -> 2       // Por defecto PEGI
+            "NTSC-U"  -> 1 // USA
+            "PAL EU"  -> 2 // Europa (Default)
+            "PAL"     -> 2 // Compatibilidad hacia atrás
+            "NTSC-J"  -> 3 // Japón
+            "PAL DE"  -> 4 // Alemania (USK)
+            "NTSC-K"  -> 5 // Corea (GRAC)
+            "NTSC-BR" -> 6 // Brasil (ClassInd)
+            "PAL AU"  -> 7 // Australia (ACB)
+            else      -> 2 // Por defecto PEGI
         }
 
-        // 1. INTENTO PRINCIPAL: Buscar la clasificación de la región elegida
+        // 1. Buscamos la clasificación exacta para esa región
         val targetRating = ratings.find { (it.category ?: it.organization) == targetOrgId }
 
-        // Si encontramos la que buscamos, la devolvemos
         if (targetRating != null) {
             return mapRatingToString(targetRating)
         }
 
-        // 2. PLAN B: Si el juego NO tiene clasificación para esa región (ej: juego exclusivo de Japón pero has puesto PAL)
-        // Devolvemos la primera que encontremos para no dejarlo vacío (o puedes devolver "Import" o null)
-        ratings.firstOrNull()?.let { fallback ->
-            return mapRatingToString(fallback)
+        // 2. Fallback inteligente:
+        // Si pusiste "PAL DE" (Alemania) pero el juego no tiene USK, intenta devolver PEGI (Europa).
+        if (targetOrgId == 4) { // Si buscábamos USK y falló...
+            ratings.find { (it.category ?: it.organization) == 2 }?.let { return mapRatingToString(it) }
         }
+
+        // 3. Último recurso: Devuelve lo primero que pille (mejor que null)
+        ratings.firstOrNull()?.let { return mapRatingToString(it) }
 
         return null
     }
 
-    // Función auxiliar para convertir numeritos a texto (Para no ensuciar la lógica principal)
     private fun mapRatingToString(dto: AgeRatingDto): String {
         val cat = dto.category ?: dto.organization ?: -1
         val rat = dto.rating ?: dto.ratingCategory ?: -1
 
         return when (cat) {
+            1 -> { // ESRB
+                when (rat) {
+                    6 -> "ESRB RP"; 7 -> "ESRB EC"; 8 -> "ESRB E"; 9 -> "ESRB 10+"; 10 -> "ESRB T"; 11 -> "ESRB M"; 12 -> "ESRB AO"
+                    else -> "ESRB ($rat)"
+                }
+            }
             2 -> { // PEGI
                 when (rat) {
                     1 -> "PEGI 3"; 2 -> "PEGI 7"; 3 -> "PEGI 12"; 4 -> "PEGI 16"; 5 -> "PEGI 18"
                     else -> "PEGI ($rat)"
-                }
-            }
-            1 -> { // ESRB
-                when (rat) {
-                    8 -> "ESRB E"; 9 -> "ESRB 10+"; 10 -> "ESRB T"; 11 -> "ESRB M"; 12 -> "ESRB AO"
-                    else -> "ESRB ($rat)"
                 }
             }
             3 -> { // CERO (Japón)
@@ -273,7 +278,30 @@ class GameRepository @Inject constructor(
                     else -> "CERO ($rat)"
                 }
             }
-            // Puedes añadir aquí USK, GRAC, etc. si quieres soporte global
+            4 -> { // USK (Alemania)
+                when (rat) {
+                    18 -> "USK 0"; 19 -> "USK 6"; 20 -> "USK 12"; 21 -> "USK 16"; 22 -> "USK 18"
+                    else -> "USK ($rat)"
+                }
+            }
+            5 -> { // GRAC (Corea)
+                when (rat) {
+                    23 -> "GRAC All"; 24 -> "GRAC 12"; 25 -> "GRAC 15"; 26 -> "GRAC 18"; 39 -> "GRAC Test"
+                    else -> "GRAC ($rat)"
+                }
+            }
+            6 -> { // ClassInd (Brasil)
+                when (rat) {
+                    27 -> "L (All)"; 28 -> "10"; 29 -> "12"; 30 -> "14"; 31 -> "16"; 32 -> "18"
+                    else -> "ClassInd ($rat)"
+                }
+            }
+            7 -> { // ACB (Australia)
+                when (rat) {
+                    33 -> "ACB G"; 34 -> "ACB PG"; 35 -> "ACB M"; 36 -> "ACB MA15+"; 37 -> "ACB R18+"; 38 -> "ACB RC"
+                    else -> "ACB ($rat)"
+                }
+            }
             else -> "UNK ($rat)"
         }
     }

@@ -307,6 +307,7 @@ fun LibraryScreen(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun GameCard(game: Game, onClick: () -> Unit, onLongClick: () -> Unit) {
+    // 1. Lógica de colores de plataforma
     val (platformIcon, platformColor) = when {
         game.platform.contains("Switch", true) -> Icons.Default.Gamepad to Color(0xFFE60012)
         game.platform.contains("GameCube", true) -> Icons.Default.Apps to Color(0xFF6A5ACD)
@@ -317,26 +318,124 @@ fun GameCard(game: Game, onClick: () -> Unit, onLongClick: () -> Unit) {
         else -> Icons.Default.Games to Color.Black
     }
 
+    // 2. Función auxiliar para la bandera (Local)
+    fun getRegionFlag(region: String): String {
+        return when (region) {
+            "NTSC-U"  -> "🇺🇸"
+            "PAL"     -> "🇪🇺"
+            "PAL EU"  -> "🇪🇺" // Por si acaso usas la variante larga
+            "NTSC-J"  -> "🇯🇵"
+            "PAL DE"  -> "🇩🇪"
+            "NTSC-K"  -> "🇰🇷"
+            "NTSC-BR" -> "🇧🇷"
+            "PAL AU"  -> "🇦🇺"
+            else      -> "🌐"
+        }
+    }
+
     Card(
-        modifier = Modifier.padding(4.dp).fillMaxWidth().aspectRatio(1f).combinedClickable(onClick = onClick, onLongClick = onLongClick),
+        modifier = Modifier
+            .padding(4.dp)
+            .fillMaxWidth()
+            .aspectRatio(1f)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
         shape = RoundedCornerShape(8.dp),
         elevation = CardDefaults.cardElevation(3.dp)
     ) {
         Box {
-            AsyncImage(model = game.imageUrl, contentDescription = game.title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-            Row(modifier = Modifier.fillMaxWidth().padding(6.dp).align(Alignment.TopCenter), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                Surface(color = platformColor.copy(alpha = 0.9f), shape = CircleShape, modifier = Modifier.size(24.dp)) {
-                    Icon(imageVector = platformIcon, contentDescription = null, tint = Color.White, modifier = Modifier.padding(5.dp))
+            // FONDO: Imagen
+            AsyncImage(
+                model = game.imageUrl,
+                contentDescription = game.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+
+            // CAPA SUPERIOR: Iconos y Estado
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(6.dp)
+                    .align(Alignment.TopCenter),
+                // Alineamos arriba para que el badge de estado no se mueva si la columna de la izq crece
+                verticalAlignment = Alignment.Top,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                // IZQUIERDA: Columna con Icono Plataforma + Bandera
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(4.dp) // Espacio entre icono y bandera
+                ) {
+                    // Icono Plataforma
+                    Surface(
+                        color = platformColor.copy(alpha = 0.9f),
+                        shape = CircleShape,
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = platformIcon,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.padding(5.dp)
+                        )
+                    }
+
+                    // Bandera Región (Estilo pegatina pequeña)
+                    Surface(
+                        color = Color.Black.copy(alpha = 0.6f), // Fondo oscuro semitransparente para legibilidad
+                        shape = RoundedCornerShape(4.dp)
+                    ) {
+                        Text(
+                            text = getRegionFlag(game.region),
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    }
                 }
+
+                // DERECHA: Estado (Playing, Completed...)
                 Surface(
-                    color = when(game.status) { "Playing" -> Color(0xFFFFD600); "Completed" -> Color(0xFF4CAF50); else -> Color.DarkGray },
+                    color = when (game.status) {
+                        "Playing" -> Color(0xFFFFD600)
+                        "Completed" -> Color(0xFF4CAF50)
+                        else -> Color.DarkGray
+                    },
                     shape = RoundedCornerShape(4.dp)
                 ) {
-                    Text(text = if(game.status == "Playing") "P" else if(game.status=="Completed") "C" else "B", modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = if (game.status == "Playing") Color.Black else Color.White)
+                    Text(
+                        text = if (game.status == "Playing") "P" else if (game.status == "Completed") "C" else "B",
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = if (game.status == "Playing") Color.Black else Color.White
+                    )
                 }
             }
-            Box(modifier = Modifier.fillMaxWidth().height(80.dp).align(Alignment.BottomCenter).background(Brush.verticalGradient(colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.7f)))))
-            Text(text = game.title, modifier = Modifier.align(Alignment.BottomStart).padding(8.dp).fillMaxWidth(), style = MaterialTheme.typography.labelLarge, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Start)
+
+            // CAPA INFERIOR: Gradiente y Título
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(80.dp)
+                    .align(Alignment.BottomCenter)
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.7f))
+                        )
+                    )
+            )
+            Text(
+                text = game.title,
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(8.dp)
+                    .fillMaxWidth(),
+                style = MaterialTheme.typography.labelLarge,
+                color = Color.White,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Start
+            )
         }
     }
 }
@@ -386,5 +485,18 @@ fun UpdateProgressDialog(
                 )
             }
         }
+    }
+}
+
+fun getRegionFlag(region: String): String {
+    return when (region) {
+        "NTSC-U"  -> "🇺🇸" // Estados Unidos
+        "PAL"     -> "🇪🇺" // Europa (Unión Europea)
+        "NTSC-J"  -> "🇯🇵" // Japón
+        "PAL DE"  -> "🇩🇪" // Alemania
+        "NTSC-K"  -> "🇰🇷" // Corea del Sur
+        "NTSC-BR" -> "🇧🇷" // Brasil
+        "PAL AU"  -> "🇦🇺" // Australia
+        else      -> "🌐" // Globo (para desconocidos)
     }
 }
