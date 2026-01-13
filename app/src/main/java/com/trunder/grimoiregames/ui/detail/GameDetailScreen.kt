@@ -1,6 +1,5 @@
 package com.trunder.grimoiregames.ui.detail
 
-import android.widget.Toast
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -16,8 +15,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Newspaper
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Save
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material3.*
@@ -44,14 +41,17 @@ fun GameDetailScreen(
     onBackClick: () -> Unit,
     viewModel: GameDetailViewModel = hiltViewModel()
 ) {
-    val game by viewModel.game.collectAsState(initial = null)
-    val context = LocalContext.current
+    // 1. OBSERVAMOS EL JUEGO DESDE EL VIEWMODEL (FLOW -> STATE)
+    // Esto asegura que la UI se actualice automáticamente cuando la BD cambie.
+    val gameState by viewModel.game.collectAsState(initial = null)
+
+    // Estado local solo para cosas de UI efímeras (como diálogos)
     var showScoreDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(game?.title ?: "Detalles") },
+                title = { Text(gameState?.title ?: "Cargando...") },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Volver")
@@ -63,11 +63,18 @@ fun GameDetailScreen(
             )
         }
     ) { padding ->
-        game?.let { currentSafeGame ->
+        // Si el juego es null, mostramos carga. Si no, mostramos contenido.
+        if (gameState == null) {
+            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        } else {
+            val currentSafeGame = gameState!!
+
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .verticalScroll(rememberScrollState()) // Para que se pueda bajar
+                    .verticalScroll(rememberScrollState())
                     .padding(padding)
             ) {
                 // 1. IMAGEN DE CABECERA
@@ -87,61 +94,57 @@ fun GameDetailScreen(
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold
                     )
-                    // Envoltorio horizontal
+
+                    // Envoltorio horizontal: Plataforma + Badge Región
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(vertical = 4.dp) // Un poco de aire arriba y abajo
+                        modifier = Modifier.padding(vertical = 4.dp)
                     ) {
-                        // 2.1. Nombre de la Plataforma
                         Text(
                             text = currentSafeGame.platform,
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.primary
                         )
 
-                        Spacer(modifier = Modifier.width(8.dp)) // Espacio entre texto y etiqueta
+                        Spacer(modifier = Modifier.width(8.dp))
 
-                        // 2.2. Etiqueta de Región
-                        // Usamos currentSafeGame.region en vez de game!! para ser más seguros
+                        // BADGE DE REGIÓN
                         RegionBadge(region = currentSafeGame.region)
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // 3. FILA DE INFO RÁPIDA (Notas, Lanzamiento, Género, PEGI)
+                    // 3. FILA DE INFO RÁPIDA (Notas + Info)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 8.dp), // Un poco de aire vertical
+                            .padding(vertical = 8.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // A. LAS NOTAS (Prensa + Fans juntas) - AHORA CON CLICK
+                        // A. LAS NOTAS (Prensa + Fans) -> CLICKABLE PARA ABRIR DIÁLOGO
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp)) // Redondeamos las esquinas del área tocable
-                                .clickable { showScoreDialog = true } // <--- ¡AQUÍ ESTÁ LA CLAVE!
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)) // Un fondo sutil para que parezca un botón
-                                .padding(horizontal = 8.dp, vertical = 4.dp) // Un poco de aire interno
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { showScoreDialog = true }
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
                         ) {
-                            // Nota Prensa
                             RatingBadge(
-                                score = currentSafeGame.metacriticPress, // Tu cambio: Metacritic por defecto
+                                score = currentSafeGame.metacriticPress,
                                 label = "Score",
                                 icon = Icons.Default.Newspaper
                             )
 
                             Spacer(modifier = Modifier.width(12.dp))
 
-                            // Nota Fans
                             RatingBadge(
                                 score = currentSafeGame.metacriticUser,
                                 label = "User Score",
                                 icon = Icons.Default.Person
                             )
 
-                            // Icono pequeño para indicar que hay "más cosas" (desplegable)
                             Spacer(modifier = Modifier.width(4.dp))
                             Icon(
                                 imageVector = Icons.Default.ArrowDropDown,
@@ -151,15 +154,14 @@ fun GameDetailScreen(
                             )
                         }
 
-                        // B. INFO TEXTUAL (Se mantiene igual)
-                        // Usamos Box o Row simples para alinear si InfoItem ocupa mucho
+                        // B. INFO TEXTUAL (Año y Género)
                         InfoItem(label = "Año", value = currentSafeGame.releaseDate?.take(4) ?: "TBA")
                         InfoItem(label = "Género", value = currentSafeGame.genre?.split(",")?.firstOrNull() ?: "N/A")
                     }
 
                     HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
 
-                    // 4. SINOPSIS
+                    // 4. SINOPSIS CON TRADUCCIÓN
                     val translatedDescription by viewModel.translatedDescription.collectAsState()
                     val isTranslating by viewModel.isTranslating.collectAsState()
 
@@ -174,25 +176,16 @@ fun GameDetailScreen(
                             fontWeight = FontWeight.SemiBold
                         )
 
-                        // LÓGICA DEL BOTÓN:
-                        // Solo lo mostramos si aún NO tenemos la traducción
+                        // Botón Traducir (solo si no hay traducción ya hecha)
                         if (translatedDescription == null) {
                             if (isTranslating) {
-                                // Si está cargando, mostramos ruedita pequeña
                                 CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                             } else {
-                                // Si no, mostramos botón "Traducir"
                                 TextButton(
-                                    onClick = {
-                                        // Al pulsar, mandamos el texto original al ViewModel
-                                        viewModel.translateDescription(currentSafeGame.description)
-                                    },
-                                    // Ajustamos padding para que no ocupe mucho
+                                    onClick = { viewModel.translateDescription(currentSafeGame.description) },
                                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
                                 ) {
                                     Icon(
-                                        // Asegúrate de tener: import androidx.compose.material.icons.filled.Translate
-                                        // Si no te sale el icono Translate, usa Icons.Default.Language o Icons.Default.Refresh
                                         imageVector = Icons.Default.Translate,
                                         contentDescription = null,
                                         modifier = Modifier.size(16.dp)
@@ -206,15 +199,9 @@ fun GameDetailScreen(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // QUÉ TEXTO MOSTRAR:
-                    // Si hay traducción, mostramos esa. Si no, la original. Si es null, el mensaje por defecto.
                     val descriptionToShow = translatedDescription ?: currentSafeGame.description ?: "No hay descripción disponible."
 
-                    // Animamos suavemente el cambio de texto (Opcional, queda bonito)
-                    AnimatedContent(
-                        targetState = descriptionToShow,
-                        label = "textChange"
-                    ) { text ->
+                    AnimatedContent(targetState = descriptionToShow, label = "textChange") { text ->
                         Text(
                             text = text,
                             style = MaterialTheme.typography.bodyMedium,
@@ -228,21 +215,20 @@ fun GameDetailScreen(
                     // 5. DATOS TÉCNICOS
                     TechnicalDataRow(label = "Desarrollador", value = currentSafeGame.developer)
                     TechnicalDataRow(label = "Editor", value = currentSafeGame.publisher)
-                    // C. CLASIFICACION POR EDADES
+
+                    // CLASIFICACIÓN EDADES
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text("Clasificación", color = Color.Gray)
-
-                        // 👇 AQUÍ VA EL BADGE
                         AgeRatingBadge(ratingString = currentSafeGame.ageRating)
                     }
 
                     HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
 
-                    // 6. SECCIÓN DE PROGRESO (Recuperada)
+                    // 6. SECCIÓN DE PROGRESO PERSONAL
                     Text(
                         text = "Tu Progreso",
                         style = MaterialTheme.typography.titleLarge,
@@ -251,7 +237,7 @@ fun GameDetailScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // --- ESTADO DEL JUEGO ---
+                    // --- ESTADO (Backlog/Playing/Completed) ---
                     Text("Estado", style = MaterialTheme.typography.labelLarge)
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
@@ -260,9 +246,7 @@ fun GameDetailScreen(
                         listOf("Backlog", "Playing", "Completed").forEach { status ->
                             FilterChip(
                                 selected = currentSafeGame.status == status,
-                                onClick = {
-                                    viewModel.updateStatus(currentSafeGame, status)
-                                },
+                                onClick = { viewModel.updateStatus(currentSafeGame, status) },
                                 label = { Text(status) }
                             )
                         }
@@ -270,11 +254,13 @@ fun GameDetailScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // --- NUEVO SISTEMA DE TIERS ---
+                    // --- SELECTOR DE TIER (AUTOGUARDADO) ---
+                    // Pasamos el userRating que viene de la BD para que se ilumine el correcto
                     TierSelector(
-                        currentRating = currentSafeGame.rating,
+                        currentRating = currentSafeGame.userRating,
                         onTierSelected = { newRating ->
-                            viewModel.updateRating(currentSafeGame, newRating)
+                            // Guardamos en BD al instante
+                            viewModel.onUserRatingChanged(currentSafeGame, newRating)
                         }
                     )
 
@@ -282,64 +268,42 @@ fun GameDetailScreen(
 
                     // --- HORAS DE JUEGO ---
                     OutlinedTextField(
-                        // LÓGICA: Si es 0 o null, ponemos texto vacío "" para que no moleste.
-                        // Si tiene horas (ej: 15), mostramos "15".
                         value = if ((currentSafeGame.hoursPlayed ?: 0) == 0) "" else currentSafeGame.hoursPlayed.toString(),
-
                         onValueChange = { newValue ->
-                            // Solo dejamos escribir números (evitamos letras o símbolos)
                             if (newValue.all { it.isDigit() }) {
                                 val hours = newValue.toIntOrNull() ?: 0
-                                viewModel.updateHours(currentSafeGame, hours)
+                                viewModel.onPlayTimeChanged(currentSafeGame, hours)
                             }
                         },
                         label = { Text("Horas Jugadas") },
-                        placeholder = { Text("0") }, // Esto se ve clarito cuando está vacío
+                        placeholder = { Text("0") },
                         modifier = Modifier.fillMaxWidth(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         prefix = { Icon(Icons.Default.Timer, null) }
                     )
 
-                    Spacer(modifier = Modifier.height(80.dp)) // Espacio final
+                    Spacer(modifier = Modifier.height(80.dp))
                 }
             }
 
-            // 👇 AQUÍ SE DIBUJA EL MODAL SI LA VARIABLE ES TRUE
+            // DIÁLOGO DE PUNTUACIONES (MODAL)
             if (showScoreDialog) {
                 ScoreComparisonDialog(
                     game = currentSafeGame,
                     onDismiss = { showScoreDialog = false }
                 )
             }
-
-        } ?: run {
-            // Pantalla de carga mientras llega el Flow
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
         }
     }
 }
 
+// --- COMPONENTES AUXILIARES ---
+
 @Composable
-fun InfoItem(label: String, value: String, isBadge: Boolean = false) {
+fun InfoItem(label: String, value: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(text = label, style = MaterialTheme.typography.labelMedium, color = Color.Gray)
-        if (isBadge && value != "N/A") {
-            Surface(
-                color = if (value.toInt() >= 75) Color(0xFF4CAF50) else Color(0xFFFFC107),
-                shape = RoundedCornerShape(4.dp)
-            ) {
-                Text(
-                    text = value,
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        } else {
-            Text(text = value, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
-        }
+        Text(text = value, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -347,17 +311,13 @@ fun InfoItem(label: String, value: String, isBadge: Boolean = false) {
 fun AgeRatingBadge(ratingString: String?) {
     if (ratingString == null) return
 
-    // Lógica de colores según el texto
     val color = when {
-        // VERDE (Apto para todos)
         ratingString.contains("PEGI 3") || ratingString.contains("PEGI 7") ||
                 ratingString.contains("ESRB E") || ratingString.contains("CERO A") -> Color(0xFF4CAF50)
 
-        // AMARILLO/NARANJA (Adolescentes)
         ratingString.contains("PEGI 12") || ratingString.contains("PEGI 16") ||
                 ratingString.contains("ESRB T") || ratingString.contains("CERO B") || ratingString.contains("CERO C") -> Color(0xFFFFC107)
 
-        // ROJO (Adultos)
         ratingString.contains("PEGI 18") || ratingString.contains("ESRB M") ||
                 ratingString.contains("CERO D") || ratingString.contains("CERO Z") -> Color(0xFFF44336)
 
@@ -365,13 +325,13 @@ fun AgeRatingBadge(ratingString: String?) {
     }
 
     Surface(
-        color = color, // Fondo de color sólido
+        color = color,
         shape = RoundedCornerShape(4.dp),
         modifier = Modifier.padding(start = 8.dp)
     ) {
         Text(
             text = ratingString,
-            color = Color.White, // Texto blanco para contraste
+            color = Color.White,
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -392,19 +352,16 @@ fun TechnicalDataRow(label: String, value: String?) {
 @Composable
 fun RatingBadge(score: Int?, label: String, icon: androidx.compose.ui.graphics.vector.ImageVector) {
     val scoreText = score?.toString() ?: "--"
-
-    // Color semáforo según la nota
     val color = when {
         score == null -> Color.Gray
-        score >= 75 -> Color(0xFF4CAF50) // Verde
-        score >= 50 -> Color(0xFFFFC107) // Amarillo
-        else -> Color(0xFFF44336)        // Rojo
+        score >= 75 -> Color(0xFF4CAF50)
+        score >= 50 -> Color(0xFFFFC107)
+        else -> Color(0xFFF44336)
     }
 
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        // Círculo con la nota
         Surface(
-            color = color.copy(alpha = 0.2f), // Fondo suave
+            color = color.copy(alpha = 0.2f),
             shape = CircleShape,
             border = BorderStroke(2.dp, color),
             modifier = Modifier.size(42.dp)
@@ -418,7 +375,6 @@ fun RatingBadge(score: Int?, label: String, icon: androidx.compose.ui.graphics.v
                 )
             }
         }
-        // Texto debajo (Prensa/Fans)
         Spacer(modifier = Modifier.height(4.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(12.dp), tint = Color.Gray)
@@ -435,17 +391,10 @@ fun RatingBadge(score: Int?, label: String, icon: androidx.compose.ui.graphics.v
 @Composable
 fun ScorePill(score: Int?, isPress: Boolean) {
     if (score == null) {
-        // Si no hay nota, mostramos guiones grises
         Text("--", color = Color.Gray)
     } else {
-        // Colores semáforo
-        val color = if (score >= 75) Color(0xFF4CAF50) // Verde
-        else if (score >= 50) Color(0xFFFFC107)        // Amarillo
-        else Color(0xFFF44336)                         // Rojo
-
-        // Dibujamos la "pastilla"
+        val color = if (score >= 75) Color(0xFF4CAF50) else if (score >= 50) Color(0xFFFFC107) else Color(0xFFF44336)
         Surface(
-            // Si es Prensa -> Fondo sólido. Si es Usuario -> Solo borde.
             color = if (isPress) color else Color.Transparent,
             border = if (!isPress) BorderStroke(1.dp, color) else null,
             shape = RoundedCornerShape(4.dp),
@@ -453,7 +402,6 @@ fun ScorePill(score: Int?, isPress: Boolean) {
         ) {
             Text(
                 text = score.toString(),
-                // Si es Prensa -> Texto Blanco. Si es Usuario -> Texto del color de la nota.
                 color = if (isPress) Color.White else color,
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.Bold,
@@ -463,61 +411,25 @@ fun ScorePill(score: Int?, isPress: Boolean) {
     }
 }
 
-// --- COMPONENTES DEL MODAL (Pégalos al final del archivo) ---
-
 @Composable
-fun ScoreComparisonDialog(
-    game: Game,
-    onDismiss: () -> Unit
-) {
+fun ScoreComparisonDialog(game: Game, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = "Tabla de Puntuaciones",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-        },
+        title = { Text("Tabla de Puntuaciones", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                // Cabecera de la tabla
                 Row(modifier = Modifier.fillMaxWidth()) {
-                    Spacer(modifier = Modifier.weight(1f)) // Hueco para el nombre
+                    Spacer(modifier = Modifier.weight(1f))
                     Text("Prensa", modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, fontSize = 12.sp)
                     Text("Usuarios", modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, fontSize = 12.sp)
                 }
-
                 HorizontalDivider()
-
-                // 1. METACRITIC (Amarillo)
-                ScoreRow(
-                    sourceName = "Metacritic",
-                    pressScore = game.metacriticPress,
-                    userScore = game.metacriticUser,
-                    color = Color(0xFFFFCC33)
-                )
-
-                // 2. OPENCRITIC (Naranja)
-                ScoreRow(
-                    sourceName = "OpenCritic",
-                    pressScore = game.opencriticPress,
-                    userScore = null, // OpenCritic no suele tener user score relevante en API pública
-                    color = Color(0xFFFC430A)
-                )
-
-                // 3. IGDB (Morado)
-                ScoreRow(
-                    sourceName = "IGDB",
-                    pressScore = game.igdbPress,
-                    userScore = game.igdbUser,
-                    color = Color(0xFF9147FF)
-                )
+                ScoreRow("Metacritic", game.metacriticPress, game.metacriticUser, Color(0xFFFFCC33))
+                ScoreRow("OpenCritic", game.opencriticPress, null, Color(0xFFFC430A))
+                ScoreRow("IGDB", game.igdbPress, game.igdbUser, Color(0xFF9147FF))
             }
         },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Cerrar") }
-        }
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Cerrar") } }
     )
 }
 
@@ -527,74 +439,43 @@ fun ScoreRow(sourceName: String, pressScore: Int?, userScore: Int?, color: Color
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Nombre de la fuente (con bolita de color)
         Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
             Surface(color = color, shape = CircleShape, modifier = Modifier.size(8.dp)) {}
             Spacer(modifier = Modifier.width(8.dp))
             Text(sourceName, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
         }
-
-        // Nota Prensa
-        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-            ScorePill(score = pressScore, isPress = true)
-        }
-
-        // Nota Usuario
-        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-            ScorePill(score = userScore, isPress = false)
-        }
+        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) { ScorePill(score = pressScore, isPress = true) }
+        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) { ScorePill(score = userScore, isPress = false) }
     }
 }
 
 @Composable
-fun TierSelector(
-    currentRating: Int?,
-    onTierSelected: (Int) -> Unit
-) {
-    // Definimos los Tiers: Texto, Valor numérico y Color
+fun TierSelector(currentRating: Int?, onTierSelected: (Int) -> Unit) {
+    // Definición de Tiers
     data class Tier(val label: String, val value: Int, val color: Color)
-
     val tiers = listOf(
-        Tier("S+", 10, Color(0xFFFF7F7F)), // Rojo salmón
-        Tier("S", 9, Color(0xFFFFBF7F)),   // Naranja suave
-        Tier("A", 8, Color(0xFFFFDF7F)),   // Amarillo anaranjado
-        Tier("B", 7, Color(0xFFC6EF88)),   // Verde lima
-        Tier("C", 5, Color(0xFFFFFFA1)),   // Amarillo pálido
-        Tier("D", 3, Color(0xFFD3D3D3))    // Gris
+        Tier("S+", 10, Color(0xFFFF7F7F)),
+        Tier("S", 9, Color(0xFFFFBF7F)),
+        Tier("A", 8, Color(0xFFFFDF7F)),
+        Tier("B", 7, Color(0xFFC6EF88)),
+        Tier("C", 5, Color(0xFFFFFFA1)),
+        Tier("D", 3, Color(0xFFD3D3D3))
     )
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Text("Tu Puntuación (Tier)", style = MaterialTheme.typography.labelLarge)
         Spacer(modifier = Modifier.height(8.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly
-        ) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
             tiers.forEach { tier ->
-                // Lógica: Si la nota coincide (o se acerca), está activo.
-                // Usamos un rango pequeño para agrupar notas antiguas si tenías un 6, por ejemplo.
                 val isSelected = currentRating == tier.value
-
-                TierBadge(
-                    text = tier.label,
-                    color = tier.color,
-                    isSelected = isSelected,
-                    onClick = { onTierSelected(tier.value) }
-                )
+                TierBadge(text = tier.label, color = tier.color, isSelected = isSelected, onClick = { onTierSelected(tier.value) })
             }
         }
     }
 }
 
 @Composable
-fun TierBadge(
-    text: String,
-    color: Color,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    // Si no está seleccionado, lo mostramos gris apagado y con transparencia
+fun TierBadge(text: String, color: Color, isSelected: Boolean, onClick: () -> Unit) {
     val backgroundColor = if (isSelected) color else Color.LightGray.copy(alpha = 0.3f)
     val textColor = if (isSelected) Color.Black.copy(alpha = 0.8f) else Color.Gray
     val border = if (isSelected) BorderStroke(2.dp, Color.Black.copy(alpha = 0.5f)) else null
@@ -607,17 +488,12 @@ fun TierBadge(
         border = border,
         shadowElevation = elevation,
         modifier = Modifier
-            .size(width = 48.dp, height = 48.dp) // Cuadrados uniformes
+            .size(48.dp)
             .clickable { onClick() }
-            .graphicsLayer(scaleX = scale, scaleY = scale) // Efecto pop
+            .graphicsLayer(scaleX = scale, scaleY = scale)
     ) {
         Box(contentAlignment = Alignment.Center) {
-            Text(
-                text = text,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = textColor
-            )
+            Text(text = text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = textColor)
         }
     }
 }
@@ -625,23 +501,22 @@ fun TierBadge(
 @Composable
 fun RegionBadge(region: String) {
     val (containerColor, contentColor) = when (region) {
-        "NTSC-J" -> MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer // Rojo (Japón)
-        "NTSC-U" -> MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer // Azul/Morado (USA)
-        "PAL DE" -> Color(0xFFFFF3E0) to Color(0xFFE65100) // Naranja (Alemania/USK)
-        "PAL AU" -> Color(0xFFE0F2F1) to Color(0xFF00695C) // Verde azulado (Australia)
-        "NTSC-K" -> Color(0xFFE8EAF6) to Color(0xFF283593) // Indigo (Corea)
-        else -> MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer // PAL EU (Standard)
+        "NTSC-J" -> MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer
+        "NTSC-U" -> MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer
+        "PAL DE" -> Color(0xFFFFF3E0) to Color(0xFFE65100)
+        "PAL AU" -> Color(0xFFE0F2F1) to Color(0xFF00695C)
+        "NTSC-K" -> Color(0xFFE8EAF6) to Color(0xFF283593)
+        else -> MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer
     }
-
     Surface(
         color = containerColor,
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, contentColor.copy(alpha = 0.2f))
+        shape = RoundedCornerShape(6.dp),
+        border = BorderStroke(1.dp, contentColor.copy(alpha = 0.2f))
     ) {
         Text(
             text = region,
             style = MaterialTheme.typography.labelSmall,
-            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+            fontWeight = FontWeight.Bold,
             color = contentColor,
             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
         )

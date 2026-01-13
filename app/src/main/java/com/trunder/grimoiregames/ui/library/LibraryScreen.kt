@@ -4,6 +4,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll // New import
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.*
@@ -36,23 +37,24 @@ import kotlin.collections.get
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
+import com.trunder.grimoiregames.ui.common.PlatformResolver
 
-@OptIn(ExperimentalMaterial3Api::class) // Necesario para PullToRefresh
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LibraryScreen(
     onAddGameClick: () -> Unit,
     onGameClick: (Int) -> Unit,
-    viewModel: LibraryViewModel = hiltViewModel() // O LibraryViewModel según como lo hayas renombrado
+    viewModel: LibraryViewModel = hiltViewModel()
 ) {
-    // --- ESTADOS DE DATOS ---
+    // --- DATA STATES ---
     val games by viewModel.games.collectAsState()
     val searchText by viewModel.searchText.collectAsState()
 
-    // Filtros
+    // Filters
     val activeFilters by viewModel.filters.collectAsState()
     val availableData by viewModel.availableData.collectAsState()
 
-    // --- ESTADOS DE UI ---
+    // --- UI STATES ---
     var showSortMenu by remember { mutableStateOf(false) }
     var showFilterDialog by remember { mutableStateOf(false) }
     var gameToDelete by remember { mutableStateOf<Game?>(null) }
@@ -60,14 +62,13 @@ fun LibraryScreen(
     val showUpdateDialog by viewModel.showUpdateDialog.collectAsState()
     val updateProgress by viewModel.updateProgress.collectAsState()
 
-    // Estados internos del Diálogo de Filtros
+    // Filter Dialog internal states
     var selectedCategoryForFilter by remember { mutableStateOf<String?>(null) }
 
-    // --- ESTADOS NUEVOS PARA REFRESCAR ---
-    // Estado del componente visual de Material 3
+    // --- REFRESH STATES ---
     val pullRefreshState = rememberPullToRefreshState()
 
-    // 1. DIÁLOGO DE BORRADO (Sin cambios)
+    // 1. DELETE DIALOG
     if (gameToDelete != null) {
         AlertDialog(
             onDismissRequest = { gameToDelete = null },
@@ -84,7 +85,7 @@ fun LibraryScreen(
         )
     }
 
-    // 2. DIÁLOGO DE FILTROS (Sin cambios)
+    // 2. FILTER DIALOG
     if (showFilterDialog) {
         Dialog(onDismissRequest = {
             showFilterDialog = false
@@ -97,7 +98,7 @@ fun LibraryScreen(
                 elevation = CardDefaults.cardElevation(8.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    // Cabecera
+                    // Header
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -126,9 +127,10 @@ fun LibraryScreen(
                     }
                     HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
-                    // Cuerpo
+                    // Body
                     LazyColumn(modifier = Modifier.weight(1f)) {
                         if (selectedCategoryForFilter == null) {
+                            // Category List
                             items(availableData.keys.toList()) { category ->
                                 val isActive = when(category) {
                                     "Plataforma" -> activeFilters.platforms.isNotEmpty()
@@ -137,6 +139,7 @@ fun LibraryScreen(
                                     "Desarrolladora" -> activeFilters.developers.isNotEmpty()
                                     "Distribuidora" -> activeFilters.publishers.isNotEmpty()
                                     "Clasificación por edades" -> activeFilters.ageRatings.isNotEmpty()
+                                    "Tier Personal" -> activeFilters.tiers.isNotEmpty() // Added Check
                                     "Metacritic" -> activeFilters.metacriticRanges.isNotEmpty()
                                     "Año de Lanzamiento" -> activeFilters.releaseYears.isNotEmpty()
                                     else -> false
@@ -158,27 +161,87 @@ fun LibraryScreen(
                                 HorizontalDivider(color = Color.LightGray.copy(alpha = 0.3f))
                             }
                         } else {
+                            // Option List
                             val options = availableData[selectedCategoryForFilter] ?: emptyList()
-                            items(options) { option ->
-                                val isSelected = when(selectedCategoryForFilter) {
-                                    "Plataforma" -> option in activeFilters.platforms
-                                    "Género" -> option in activeFilters.genres
-                                    "Estado" -> option in activeFilters.statuses
-                                    "Desarrolladora" -> option in activeFilters.developers
-                                    "Distribuidora" -> option in activeFilters.publishers
-                                    "Clasificación por edades" -> option in activeFilters.ageRatings
-                                    "Metacritic" -> option in activeFilters.metacriticRanges
-                                    "Año de Lanzamiento" -> option in activeFilters.releaseYears
-                                    else -> false
-                                }
-                                Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp)) {
-                                    FilterChip(
-                                        selected = isSelected,
-                                        onClick = { viewModel.toggleFilter(selectedCategoryForFilter!!, option) },
-                                        label = { Text(option) },
-                                        leadingIcon = if (isSelected) { { Icon(Icons.Default.Check, "Seleccionado", modifier = Modifier.size(FilterChipDefaults.IconSize)) } } else null,
-                                        modifier = Modifier.fillMaxWidth()
+
+                            // -> SPECIAL LOGIC FOR PERSONAL TIER <-
+                            if (selectedCategoryForFilter == "Tier Personal") {
+                                item {
+                                    // Define colors and order
+                                    val tierColors = mapOf(
+                                        "S+" to Color(0xFFFF7F7F),
+                                        "S" to Color(0xFFFFBF7F),
+                                        "A" to Color(0xFFFFDF7F),
+                                        "B" to Color(0xFFC6EF88),
+                                        "C" to Color(0xFFFFFFA1),
+                                        "D" to Color(0xFFD3D3D3),
+                                        "F" to Color(0xFF999999),
+                                        "Sin Puntuación" to Color.LightGray
                                     )
+
+                                    // Render as a grid or list, here using a simple Column since LazyColumn expects items
+                                    // But since we are inside LazyColumn 'else' block, we can just iterate.
+                                    // However, for Tiers, we want to control the look.
+                                    // Let's iterate the options (which are S+, S, A...)
+
+                                    Column {
+                                        options.forEach { option ->
+                                            val isSelected = option in activeFilters.tiers
+                                            val tierColor = tierColors[option] ?: MaterialTheme.colorScheme.surfaceVariant
+
+                                            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp)) {
+                                                FilterChip(
+                                                    selected = isSelected,
+                                                    onClick = { viewModel.toggleFilter("Tier Personal", option) },
+                                                    label = {
+                                                        Text(
+                                                            text = option,
+                                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                                            color = if (isSelected) Color.Black else Color.Unspecified
+                                                        )
+                                                    },
+                                                    leadingIcon = if (isSelected) {
+                                                        { Icon(Icons.Default.Check, "Seleccionado", modifier = Modifier.size(FilterChipDefaults.IconSize), tint = Color.Black) }
+                                                    } else null,
+                                                    colors = FilterChipDefaults.filterChipColors(
+                                                        selectedContainerColor = tierColor,
+                                                        selectedLabelColor = Color.Black,
+                                                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                                                    ),
+                                                    border = FilterChipDefaults.filterChipBorder(
+                                                        enabled = true,
+                                                        selected = isSelected,
+                                                        borderColor = if (isSelected) Color.Black else tierColor.copy(alpha = 0.5f)
+                                                    ),
+                                                    modifier = Modifier.fillMaxWidth()
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            } else {
+                                // -> GENERIC LOGIC FOR OTHER FILTERS <-
+                                items(options) { option ->
+                                    val isSelected = when(selectedCategoryForFilter) {
+                                        "Plataforma" -> option in activeFilters.platforms
+                                        "Género" -> option in activeFilters.genres
+                                        "Estado" -> option in activeFilters.statuses
+                                        "Desarrolladora" -> option in activeFilters.developers
+                                        "Distribuidora" -> option in activeFilters.publishers
+                                        "Clasificación por edades" -> option in activeFilters.ageRatings
+                                        "Metacritic" -> option in activeFilters.metacriticRanges
+                                        "Año de Lanzamiento" -> option in activeFilters.releaseYears
+                                        else -> false
+                                    }
+                                    Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp)) {
+                                        FilterChip(
+                                            selected = isSelected,
+                                            onClick = { viewModel.toggleFilter(selectedCategoryForFilter!!, option) },
+                                            label = { Text(option) },
+                                            leadingIcon = if (isSelected) { { Icon(Icons.Default.Check, "Seleccionado", modifier = Modifier.size(FilterChipDefaults.IconSize)) } } else null,
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -215,7 +278,7 @@ fun LibraryScreen(
                             Text("Grimoire Games")
                             val totalFilters = activeFilters.platforms.size + activeFilters.genres.size +
                                     activeFilters.statuses.size + activeFilters.developers.size +
-                                    activeFilters.releaseYears.size
+                                    activeFilters.releaseYears.size + activeFilters.tiers.size // Added Tier count
                             if (totalFilters > 0) {
                                 Text("Filtros activos: $totalFilters", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                             }
@@ -239,6 +302,7 @@ fun LibraryScreen(
                                 DropdownMenuItem(text = { Text("Alfabético") }, onClick = { viewModel.onSortChange(SortOption.TITLE); showSortMenu = false })
                                 DropdownMenuItem(text = { Text("Plataforma") }, onClick = { viewModel.onSortChange(SortOption.PLATFORM); showSortMenu = false })
                                 DropdownMenuItem(text = { Text("Estado") }, onClick = { viewModel.onSortChange(SortOption.STATUS); showSortMenu = false })
+                                DropdownMenuItem(text = { Text("Tier") }, onClick = { viewModel.onSortChange(SortOption.TIER); showSortMenu = false }) // Added Tier Sort
                             }
                         }
                     }
@@ -250,21 +314,17 @@ fun LibraryScreen(
             FloatingActionButton(onClick = onAddGameClick) { Icon(Icons.Default.Add, "Añadir") }
         }
     ) { innerPadding ->
-
-        // 👇 AQUI INTEGRAMOS EL PULL TO REFRESH
-        // Envolvemos todo el contenido (Lista o Vacío) en la caja de refresco
         PullToRefreshBox(
             isRefreshing = false,
-            onRefresh = { viewModel.refreshLibrary() }, // Asegúrate de tener esta función en tu ViewModel
+            onRefresh = { viewModel.refreshLibrary() },
             state = pullRefreshState,
-            modifier = Modifier.padding(innerPadding) // El padding del Scaffold va aquí
+            modifier = Modifier.padding(innerPadding)
         ) {
             if (games.isEmpty()) {
-                // Hacemos que la caja vacía sea scrolleable para que funcione el gesto de refrescar aunque esté vacía
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .verticalScroll(rememberScrollState()), // Importante para el gesto
+                        .verticalScroll(rememberScrollState()),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(if (searchText.isNotEmpty() || activeFilters != GameFilters()) "No hay juegos con estos criterios" else "Tu Grimorio está vacío... ¡Añade loot!")
@@ -272,7 +332,6 @@ fun LibraryScreen(
             } else {
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(3),
-                    // Quitamos el innerPadding del contentPadding porque ya lo aplicamos al PullToRefreshBox
                     contentPadding = PaddingValues(
                         top = 16.dp,
                         bottom = 80.dp,
@@ -307,29 +366,17 @@ fun LibraryScreen(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun GameCard(game: Game, onClick: () -> Unit, onLongClick: () -> Unit) {
-    // 1. Lógica de colores de plataforma
-    val (platformIcon, platformColor) = when {
-        game.platform.contains("Switch", true) -> Icons.Default.Gamepad to Color(0xFFE60012)
-        game.platform.contains("GameCube", true) -> Icons.Default.Apps to Color(0xFF6A5ACD)
-        game.platform.contains("Wii", true) -> Icons.Default.SportsEsports to Color(0xFF8DE3F5)
-        game.platform.contains("PlayStation", true) -> Icons.Default.VideogameAsset to Color(0xFF003791)
-        game.platform.contains("PC", true) -> Icons.Default.Computer to Color(0xFF4B4B4B)
-        game.platform.contains("Xbox", true) -> Icons.Default.SportsEsports to Color(0xFF107C10)
-        else -> Icons.Default.Games to Color.Black
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    val theme = remember(game.platform) {
+        PlatformResolver.getTheme(context, game.platform)
     }
 
-    // 2. Función auxiliar para la bandera (Local)
     fun getRegionFlag(region: String): String {
         return when (region) {
-            "NTSC-U"  -> "🇺🇸"
-            "PAL"     -> "🇪🇺"
-            "PAL EU"  -> "🇪🇺" // Por si acaso usas la variante larga
-            "NTSC-J"  -> "🇯🇵"
-            "PAL DE"  -> "🇩🇪"
-            "NTSC-K"  -> "🇰🇷"
-            "NTSC-BR" -> "🇧🇷"
-            "PAL AU"  -> "🇦🇺"
-            else      -> "🌐"
+            "NTSC-U" -> "🇺🇸"; "PAL" -> "🇪🇺"; "PAL EU" -> "🇪🇺"
+            "NTSC-J" -> "🇯🇵"; "PAL DE" -> "🇩🇪"; "NTSC-K" -> "🇰🇷"
+            "NTSC-BR" -> "🇧🇷"; "PAL AU" -> "🇦🇺"; else -> "🌐"
         }
     }
 
@@ -343,7 +390,6 @@ fun GameCard(game: Game, onClick: () -> Unit, onLongClick: () -> Unit) {
         elevation = CardDefaults.cardElevation(3.dp)
     ) {
         Box {
-            // FONDO: Imagen
             AsyncImage(
                 model = game.imageUrl,
                 contentDescription = game.title,
@@ -351,49 +397,52 @@ fun GameCard(game: Game, onClick: () -> Unit, onLongClick: () -> Unit) {
                 modifier = Modifier.fillMaxSize()
             )
 
-            // CAPA SUPERIOR: Iconos y Estado
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(6.dp)
                     .align(Alignment.TopCenter),
-                // Alineamos arriba para que el badge de estado no se mueva si la columna de la izq crece
                 verticalAlignment = Alignment.Top,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                // IZQUIERDA: Columna con Icono Plataforma + Bandera
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(4.dp) // Espacio entre icono y bandera
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
-                    // Icono Plataforma
                     Surface(
-                        color = platformColor.copy(alpha = 0.9f),
+                        color = theme.color.copy(alpha = 0.9f),
                         shape = CircleShape,
                         modifier = Modifier.size(24.dp)
                     ) {
-                        Icon(
-                            imageVector = platformIcon,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.padding(5.dp)
-                        )
+                        if (theme.iconResId != null) {
+                            Icon(
+                                painter = androidx.compose.ui.res.painterResource(id = theme.iconResId),
+                                contentDescription = null,
+                                tint = Color.Unspecified,
+                                modifier = Modifier.padding(4.dp)
+                            )
+                        } else {
+                            Icon(
+                                imageVector = theme.fallbackVector,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.padding(5.dp)
+                            )
+                        }
                     }
 
-                    // Bandera Región (Estilo pegatina pequeña)
-                    Surface(
-                        color = Color.Black.copy(alpha = 0.6f), // Fondo oscuro semitransparente para legibilidad
-                        shape = RoundedCornerShape(4.dp)
-                    ) {
-                        Text(
-                            text = getRegionFlag(game.region),
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
-                            style = MaterialTheme.typography.labelSmall
+                    Text(
+                        text = getRegionFlag(game.region),
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            shadow = androidx.compose.ui.graphics.Shadow(
+                                color = Color.Black.copy(alpha = 1f),
+                                offset = androidx.compose.ui.geometry.Offset(0f, 0f),
+                                blurRadius = 12f
+                            )
                         )
-                    }
+                    )
                 }
 
-                // DERECHA: Estado (Playing, Completed...)
                 Surface(
                     color = when (game.status) {
                         "Playing" -> Color(0xFFFFD600)
@@ -412,24 +461,16 @@ fun GameCard(game: Game, onClick: () -> Unit, onLongClick: () -> Unit) {
                 }
             }
 
-            // CAPA INFERIOR: Gradiente y Título
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(80.dp)
                     .align(Alignment.BottomCenter)
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.7f))
-                        )
-                    )
+                    .background(Brush.verticalGradient(colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.7f))))
             )
             Text(
                 text = game.title,
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(8.dp)
-                    .fillMaxWidth(),
+                modifier = Modifier.align(Alignment.BottomStart).padding(8.dp).fillMaxWidth(),
                 style = MaterialTheme.typography.labelLarge,
                 color = Color.White,
                 maxLines = 2,
@@ -444,7 +485,7 @@ fun GameCard(game: Game, onClick: () -> Unit, onLongClick: () -> Unit) {
 fun UpdateProgressDialog(
     progress: Int
 ) {
-    Dialog(onDismissRequest = { /* No dejamos cerrar tocando fuera para que no cancelen el proceso */ }) {
+    Dialog(onDismissRequest = { }) {
         Card(
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -462,8 +503,6 @@ fun UpdateProgressDialog(
                     fontWeight = FontWeight.Bold
                 )
 
-                // Barra de progreso lineal
-                // Convertimos el int (0..100) a float (0.0..1.0) para el componente
                 LinearProgressIndicator(
                     progress = { progress / 100f },
                     modifier = Modifier.fillMaxWidth().height(8.dp),
@@ -485,18 +524,5 @@ fun UpdateProgressDialog(
                 )
             }
         }
-    }
-}
-
-fun getRegionFlag(region: String): String {
-    return when (region) {
-        "NTSC-U"  -> "🇺🇸" // Estados Unidos
-        "PAL"     -> "🇪🇺" // Europa (Unión Europea)
-        "NTSC-J"  -> "🇯🇵" // Japón
-        "PAL DE"  -> "🇩🇪" // Alemania
-        "NTSC-K"  -> "🇰🇷" // Corea del Sur
-        "NTSC-BR" -> "🇧🇷" // Brasil
-        "PAL AU"  -> "🇦🇺" // Australia
-        else      -> "🌐" // Globo (para desconocidos)
     }
 }
