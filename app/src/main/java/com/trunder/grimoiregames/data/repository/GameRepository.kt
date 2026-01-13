@@ -54,7 +54,7 @@ class GameRepository @Inject constructor(
     }
 
     // --- AÑADIR JUEGO (Mapeo completo con Doble Llamada) ---
-    suspend fun addGame(igdbId: Int, selectedPlatform: String) {
+    suspend fun addGame(igdbId: Int, selectedPlatform: String, userRegion: String) {
         android.util.Log.d("DEBUG_APP", "🎬 Iniciando addGame para ID: $igdbId")
 
         val token = getValidToken()
@@ -123,9 +123,10 @@ class GameRepository @Inject constructor(
                 genre = details.genres?.firstOrNull()?.name ?: "Desconocido",
                 developer = details.involvedCompanies?.find { it.developer }?.company?.name ?: "Desconocido",
                 publisher = details.involvedCompanies?.find { it.publisher }?.company?.name ?: "Desconocido",
+                region = userRegion,
 
                 // 👇 AQUÍ PASAMOS LA LISTA OBTENIDA EN LA FASE 2
-                ageRating = resolveAgeRating(finalAgeRatings)
+                ageRating = resolveAgeRating(finalAgeRatings, userRegion)
             )
 
             gameDao.insertGame(newGame)
@@ -193,7 +194,7 @@ class GameRepository @Inject constructor(
                 publisher = details.involvedCompanies?.find { it.publisher }?.company?.name ?: "Desconocido",
 
                 // 👇 Pasamos la lista de objetos que conseguimos en la fase 2
-                ageRating = resolveAgeRating(finalAgeRatings),
+                ageRating = resolveAgeRating(finalAgeRatings, game.region),
 
                 imageUrl = hdImageUrl ?: game.imageUrl
             )
@@ -211,44 +212,70 @@ class GameRepository @Inject constructor(
     fun getGameById(id: Int) = gameDao.getGameById(id)
 
     // --- MAPEO INTELIGENTE DE EDAD ---
-    private fun resolveAgeRating(ratings: List<AgeRatingDto>?): String? {
+    // --- MAPEO DE EDAD BASADO EN REGIÓN ---
+    private fun resolveAgeRating(ratings: List<AgeRatingDto>?, targetRegion: String): String? {
         if (ratings.isNullOrEmpty()) return null
 
-        ratings.forEach {
-            // 👇 TRUCO: Unificamos los nombres aquí
-            val cat = it.category ?: it.organization
-            val rat = it.rating ?: it.ratingCategory
+        // Función auxiliar para leer datos
+        fun getInfo(dto: AgeRatingDto): Pair<Int, Int> {
+            val cat = dto.category ?: dto.organization ?: -1
+            val rat = dto.rating ?: dto.ratingCategory ?: -1
+            return Pair(cat, rat)
+        }
 
-            android.util.Log.d("GRIMOIRE", "👉 Revisando rating -> Cat: $cat | Rat: $rat")
+        // Definimos qué ID de organización buscamos según la región
+        // 1=ESRB, 2=PEGI, 3=CERO
+        val targetOrgId = when (targetRegion) {
+            "PAL" -> 2      // Europa -> PEGI
+            "NTSC-U" -> 1   // USA -> ESRB
+            "NTSC-J" -> 3   // Japón -> CERO
+            else -> 2       // Por defecto PEGI
+        }
 
-            // 1. BUSCAR PEGI (Europa) -> Suele ser categoría 2
-            if (cat == 2) {
-                return when (rat) {
-                    1 -> "PEGI 3"
-                    2 -> "PEGI 7"
-                    3 -> "PEGI 12"
-                    4 -> "PEGI 16"
-                    5 -> "PEGI 18"
-                    // A veces devuelve números raros como 12, 26, etc.
-                    // Si ves en el log "Cat: 2 | Rat: 12", añade aquí: 12 -> "PEGI X"
+        // 1. INTENTO PRINCIPAL: Buscar la clasificación de la región elegida
+        val targetRating = ratings.find { (it.category ?: it.organization) == targetOrgId }
+
+        // Si encontramos la que buscamos, la devolvemos
+        if (targetRating != null) {
+            return mapRatingToString(targetRating)
+        }
+
+        // 2. PLAN B: Si el juego NO tiene clasificación para esa región (ej: juego exclusivo de Japón pero has puesto PAL)
+        // Devolvemos la primera que encontremos para no dejarlo vacío (o puedes devolver "Import" o null)
+        ratings.firstOrNull()?.let { fallback ->
+            return mapRatingToString(fallback)
+        }
+
+        return null
+    }
+
+    // Función auxiliar para convertir numeritos a texto (Para no ensuciar la lógica principal)
+    private fun mapRatingToString(dto: AgeRatingDto): String {
+        val cat = dto.category ?: dto.organization ?: -1
+        val rat = dto.rating ?: dto.ratingCategory ?: -1
+
+        return when (cat) {
+            2 -> { // PEGI
+                when (rat) {
+                    1 -> "PEGI 3"; 2 -> "PEGI 7"; 3 -> "PEGI 12"; 4 -> "PEGI 16"; 5 -> "PEGI 18"
                     else -> "PEGI ($rat)"
                 }
             }
-
-            // 2. BUSCAR ESRB (USA) -> Suele ser categoría 1
-            if (cat == 1) {
-                return when (rat) {
-                    6 -> "ESRB RP"
-                    8 -> "ESRB E"
-                    9 -> "ESRB 10+"
-                    10 -> "ESRB T"
-                    11 -> "ESRB M"
-                    12 -> "ESRB AO"
+            1 -> { // ESRB
+                when (rat) {
+                    8 -> "ESRB E"; 9 -> "ESRB 10+"; 10 -> "ESRB T"; 11 -> "ESRB M"; 12 -> "ESRB AO"
                     else -> "ESRB ($rat)"
                 }
             }
+            3 -> { // CERO (Japón)
+                when (rat) {
+                    13 -> "CERO A"; 14 -> "CERO B"; 15 -> "CERO C"; 16 -> "CERO D"; 17 -> "CERO Z"
+                    else -> "CERO ($rat)"
+                }
+            }
+            // Puedes añadir aquí USK, GRAC, etc. si quieres soporte global
+            else -> "UNK ($rat)"
         }
-        return null
     }
 
     // Funciones para Backup/Restore

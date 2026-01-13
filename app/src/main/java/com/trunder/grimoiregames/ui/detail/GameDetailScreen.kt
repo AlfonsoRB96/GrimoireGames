@@ -87,11 +87,24 @@ fun GameDetailScreen(
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold
                     )
-                    Text(
-                        text = currentSafeGame.platform,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                    // Envoltorio horizontal
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(vertical = 4.dp) // Un poco de aire arriba y abajo
+                    ) {
+                        // 2.1. Nombre de la Plataforma
+                        Text(
+                            text = currentSafeGame.platform,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+
+                        Spacer(modifier = Modifier.width(8.dp)) // Espacio entre texto y etiqueta
+
+                        // 2.2. Etiqueta de Región
+                        // Usamos currentSafeGame.region en vez de game!! para ser más seguros
+                        RegionBadge(region = currentSafeGame.region)
+                    }
 
                     Spacer(modifier = Modifier.height(16.dp))
 
@@ -606,5 +619,21 @@ fun TierBadge(
                 color = textColor
             )
         }
+    }
+}
+
+@Composable
+fun RegionBadge(region: String) {
+    Surface(
+        color = MaterialTheme.colorScheme.tertiaryContainer, // Un color diferente para distinguir
+        shape = RoundedCornerShape(4.dp),
+        modifier = Modifier.padding(start = 8.dp) // Un poco de margen si lo pones al lado de otro texto
+    ) {
+        Text(
+            text = region,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onTertiaryContainer,
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+        )
     }
 }

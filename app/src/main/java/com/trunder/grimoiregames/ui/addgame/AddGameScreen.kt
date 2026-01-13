@@ -1,9 +1,12 @@
 package com.trunder.grimoiregames.ui.addgame
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Search
@@ -12,9 +15,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.trunder.grimoiregames.data.remote.dto.IgdbGameDto // 👈 IMPORTANTE
+import com.trunder.grimoiregames.data.remote.dto.IgdbGameDto
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -25,7 +30,7 @@ fun AddGameScreen(
     onGameSaved: () -> Unit,
     viewModel: AddGameViewModel = hiltViewModel()
 ) {
-    // ESTADO LOCAL: Ahora usa IgdbGameDto
+    // ESTADO LOCAL
     var selectedGameForPlatformSelection by remember { mutableStateOf<IgdbGameDto?>(null) }
 
     Scaffold(
@@ -94,7 +99,6 @@ fun AddGameScreen(
                 LazyColumn {
                     items(viewModel.searchResults) { gameDto ->
 
-                        // 👇 LÓGICA DE FECHA (Timestamp -> Año)
                         val releaseYear = remember(gameDto.firstReleaseDate) {
                             gameDto.firstReleaseDate?.let { timestamp ->
                                 val date = Date(timestamp * 1000)
@@ -117,35 +121,79 @@ fun AddGameScreen(
             }
         }
 
-        // --- DIÁLOGO DE SELECCIÓN DE PLATAFORMA ---
+        // --- DIÁLOGO DE SELECCIÓN (PLATAFORMA + REGIÓN) ---
         if (selectedGameForPlatformSelection != null) {
             val game = selectedGameForPlatformSelection!!
 
-            // 👇 LÓGICA DE PLATAFORMAS DE IGDB
-            // IGDB devuelve una lista plana: platforms[].name
+            // Estado para la región dentro del diálogo (Por defecto PAL)
+            var selectedRegion by remember { mutableStateOf("PAL") }
+            val regions = listOf("PAL", "NTSC-U", "NTSC-J")
+
             val platforms = game.platforms?.map { it.name } ?: listOf("Plataforma desconocida")
 
             AlertDialog(
                 onDismissRequest = { selectedGameForPlatformSelection = null },
-                title = { Text("Elige Plataforma") },
+                title = {
+                    Text(
+                        text = "Configurar Juego",
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                },
                 text = {
-                    Column {
-                        Text("¿Dónde vas a jugar a ${game.name}?")
-                        Spacer(modifier = Modifier.height(10.dp))
+                    // Usamos verticalScroll por si hay muchas plataformas
+                    Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                        Text("Juego: ${game.name}")
+                        Spacer(modifier = Modifier.height(16.dp))
 
-                        // Lista de botones
+                        // 👇 1. SELECTOR DE REGIÓN
+                        Text(
+                            text = "1. Elige Región:",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            regions.forEach { region ->
+                                val isSelected = region == selectedRegion
+                                FilterChip(
+                                    selected = isSelected,
+                                    onClick = { selectedRegion = region },
+                                    label = { Text(region) },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                )
+                            }
+                        }
+
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+
+                        // 👇 2. SELECTOR DE PLATAFORMA (BOTONES DE ACCIÓN)
+                        Text(
+                            text = "2. Elige Plataforma para guardar:",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+
                         platforms.forEach { platformName ->
                             Button(
                                 onClick = {
-                                    // 👇 CAMBIO IMPORTANTE
-                                    // Le pasamos el juego, la plataforma Y LO QUE TIENE QUE HACER AL ACABAR
+                                    // 👇 AQUI SE LLAMA AL VIEWMODEL CON TODOS LOS DATOS
                                     viewModel.onGameSelected(
                                         dto = game,
                                         selectedPlatform = platformName,
+                                        selectedRegion = selectedRegion, // <-- Pasamos la región seleccionada
                                         onSuccess = {
-                                            // Esto se ejecutará SOLO cuando el ViewModel diga "Ya he acabado"
                                             selectedGameForPlatformSelection = null
-                                            onGameSaved() // Volvemos atrás
+                                            onGameSaved()
                                         }
                                     )
                                 },
@@ -158,7 +206,7 @@ fun AddGameScreen(
                         }
                     }
                 },
-                confirmButton = {},
+                confirmButton = {}, // No hace falta botón confirmar, los botones de plataforma actúan como tal
                 dismissButton = {
                     TextButton(onClick = { selectedGameForPlatformSelection = null }) {
                         Text("Cancelar")

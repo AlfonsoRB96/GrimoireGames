@@ -76,19 +76,18 @@ class AddGameViewModel @Inject constructor(
 
     // 👇 AÑADIMOS UN PARAMETRO NUEVO: "onSuccess"
     // Es una función que ejecutaremos SOLO cuando hayamos terminado de guardar.
-    fun onGameSelected(dto: IgdbGameDto, selectedPlatform: String, onSuccess: () -> Unit) {
+    fun onGameSelected(dto: IgdbGameDto, selectedPlatform: String, selectedRegion: String, onSuccess: () -> Unit) {
         viewModelScope.launch {
             try {
-                // Hacemos el trabajo pesado
-                repository.addGame(dto.id, selectedPlatform)
+                // Pasamos ID, Plataforma y REGIÓN al repositorio
+                repository.addGame(dto.id, selectedPlatform, selectedRegion)
 
-                // 👇 ¡AQUÍ ESTÁ LA MAGIA!
                 // Esperamos a que termine addGame y ENTONCES llamamos a onSuccess
                 onSuccess()
 
             } catch (e: Exception) {
                 e.printStackTrace()
-                // Aquí podrías manejar un error, pero de momento con el log nos vale
+                // Aquí podrías manejar un error
             }
         }
     }
