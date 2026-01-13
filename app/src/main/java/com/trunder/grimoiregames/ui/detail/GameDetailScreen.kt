@@ -114,7 +114,7 @@ fun GameDetailScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // 3. FILA DE INFO RÁPIDA (Notas + Info)
+                    // 3. FILA DE INFO RÁPIDA (Notas, Lanzamiento, Género, PEGI)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -122,7 +122,16 @@ fun GameDetailScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // A. LAS NOTAS (Prensa + Fans) -> CLICKABLE PARA ABRIR DIÁLOGO
+                        // LÓGICA DE FALLBACK (Respaldo)
+                        // Si metacriticPress es null, usamos igdbPress. Si no, Metacritic.
+                        val pressScoreToDisplay = currentSafeGame.metacriticPress ?: currentSafeGame.igdbPress
+                        val pressLabel = if (currentSafeGame.metacriticPress != null) "Meta Score" else "IGDB Score"
+
+                        // Lo mismo para usuarios
+                        val userScoreToDisplay = currentSafeGame.metacriticUser ?: currentSafeGame.igdbUser
+                        // userLabel siempre suele ser "User Score", pero puedes poner "IGDB User" si quieres.
+
+                        // A. LAS NOTAS (Prensa + Fans juntas) - CLICKABLE
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
@@ -131,20 +140,23 @@ fun GameDetailScreen(
                                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
                                 .padding(horizontal = 8.dp, vertical = 4.dp)
                         ) {
+                            // Nota Prensa (Prioridad Metacritic > IGDB)
                             RatingBadge(
-                                score = currentSafeGame.metacriticPress,
-                                label = "Score",
+                                score = pressScoreToDisplay,
+                                label = pressLabel, // Cambia el texto dinámicamente
                                 icon = Icons.Default.Newspaper
                             )
 
                             Spacer(modifier = Modifier.width(12.dp))
 
+                            // Nota Fans (Prioridad Metacritic > IGDB)
                             RatingBadge(
-                                score = currentSafeGame.metacriticUser,
+                                score = userScoreToDisplay,
                                 label = "User Score",
                                 icon = Icons.Default.Person
                             )
 
+                            // Icono pequeño desplegable
                             Spacer(modifier = Modifier.width(4.dp))
                             Icon(
                                 imageVector = Icons.Default.ArrowDropDown,
@@ -154,7 +166,7 @@ fun GameDetailScreen(
                             )
                         }
 
-                        // B. INFO TEXTUAL (Año y Género)
+                        // B. INFO TEXTUAL (Se mantiene igual)
                         InfoItem(label = "Año", value = currentSafeGame.releaseDate?.take(4) ?: "TBA")
                         InfoItem(label = "Género", value = currentSafeGame.genre?.split(",")?.firstOrNull() ?: "N/A")
                     }

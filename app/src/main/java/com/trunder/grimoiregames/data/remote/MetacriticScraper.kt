@@ -4,6 +4,8 @@ import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.jsoup.Jsoup
+import java.text.Normalizer
+import java.util.Locale
 
 object MetacriticScraper {
 
@@ -15,45 +17,44 @@ object MetacriticScraper {
 
     suspend fun scrapScores(gameTitle: String, platform: String): ScrapeResult = withContext(Dispatchers.IO) {
         try {
-            // 1. "Slugificar" el título y plataforma (Ej: "God of War: Ragnarök" -> "god-of-war-ragnarok")
+            // 1. Slugify del título
             val gameSlug = slugify(gameTitle)
-            val platformSlug = mapPlatformToMetacritic(platform)
 
-            if (platformSlug == null) {
-                Log.e("SCRAPER", "Plataforma no soportada para scraping: $platform")
-                return@withContext ScrapeResult(null, null)
-            }
-
-            // 2. Construir URL (Ej: metacritic.com/game/playstation-5/god-of-war-ragnarok)
-            // NOTA: Metacritic cambió su estructura recientemente.
+            // 2. Construir URL Raíz
             val url = "https://www.metacritic.com/game/$gameSlug/"
-            // A veces requiere platform en la URL: "https://www.metacritic.com/game/$platformSlug/$gameSlug"
-            // Vamos a intentar la estructura más común actual:
-            val finalUrl = "https://www.metacritic.com/game/$gameSlug/?platform=$platformSlug"
 
-            Log.d("SCRAPER", "Intentando scrapear: $finalUrl")
+            Log.d("SCRAPER", "Intentando scrapear: $url")
 
-            // 3. Conectar y descargar HTML (Nos hacemos pasar por un navegador real)
-            val doc = Jsoup.connect(finalUrl)
+            // 3. Conectar y descargar HTML
+            val doc = Jsoup.connect(url)
                 .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-                .timeout(10000) // 10 segundos timeout
+                .header("Accept-Language", "en-US,en;q=0.9")
+                .timeout(10000)
                 .get()
 
-            // 4. Buscar las notas en el HTML (ESTO ES LO FRÁGIL, DEPENDE DEL DISEÑO DE ELLOS)
+            // 4. Buscar las notas (SELECTORES CORREGIDOS)
+            // El truco es buscar la clase 'c-siteReviewScore_background', que es la cajita de color que tiene el número.
 
-            // Selector para MetaScore (Prensa)
-            // Buscamos un div que contenga la clase de score. Metacritic usa clases raras ahora (c-productScoreInfo...)
-            // Truco: Buscamos por el texto "Metascore" cercano o clases genéricas
-            val metaScoreElement = doc.selectFirst("div[title^='Metascore'] span")
-                ?: doc.selectFirst(".c-productScoreInfo_scoreNumber_first span") // Fallback diseño nuevo
+            // --- METASCORE (Prensa) ---
+            // Buscamos dentro del bloque de score info -> el elemento con el background de color
+            val metaScoreElement = doc.selectFirst(".c-productScoreInfo_scoreNumber .c-siteReviewScore_background")
+                ?: doc.selectFirst("div[data-testid='critic-score-info'] .c-siteReviewScore_background")
+                ?: doc.selectFirst(".metascore_w.larger") // Fallback web antigua
 
-            // Selector para UserScore (Usuarios)
-            val userScoreElement = doc.selectFirst("div[title^='User score'] span")
-                ?: doc.selectFirst(".c-productScoreInfo_scoreNumber_second span") // Fallback diseño nuevo
+            // --- USER SCORE (Usuarios) ---
+            // Buscamos dentro del bloque de usuario -> el elemento con el background de color
+            val userScoreElement = doc.selectFirst(".c-siteReviewScore_userScore .c-siteReviewScore_background")
+                ?: doc.selectFirst("div[data-testid='user-score-info'] .c-siteReviewScore_background")
+                ?: doc.selectFirst(".metascore_w.user") // Fallback web antigua
+
+            // Log de depuración para ver qué texto exacto estamos cogiendo ahora
+            val metaTextRaw = metaScoreElement?.text()
+            val userTextRaw = userScoreElement?.text()
+            Log.d("SCRAPER", "🔎 Raw Text -> Meta: '$metaTextRaw' | User: '$userTextRaw'")
 
             // 5. Limpiar y convertir a Int
-            val metaScore = parseScore(metaScoreElement?.text())
-            val userScore = parseScore(userScoreElement?.text()) // Nota: User score suele ser sobre 10 (ej: 8.5)
+            val metaScore = parseScore(metaTextRaw)
+            val userScore = parseScore(userTextRaw)
 
             // Convertimos nota usuario (8.5) a base 100 (85)
             val finalUserScore = userScore?.let { if (it <= 10) it * 10 else it }
@@ -71,29 +72,28 @@ object MetacriticScraper {
     // --- HELPERS ---
 
     private fun slugify(input: String): String {
-        return input.lowercase()
+        val normalized = Normalizer.normalize(input, Normalizer.Form.NFD)
+        return normalized
+            .replace("\\p{InCombiningDiacriticalMarks}+".toRegex(), "") // Quita tildes
+            .lowercase(Locale.ROOT)
             .replace(":", "")
             .replace("'", "")
             .replace(".", "")
             .replace("&", "and")
-            .replace(" ", "-")
-            .replace(Regex("[^a-z0-9-]"), "") // Quitar caracteres raros
+            .replace("+", "plus")
+            .replace("/", "-")
+            .trim()
+            .replace("[^a-z0-9\\s-]".toRegex(), "")
+            .replace("\\s+".toRegex(), "-")
     }
 
     private fun parseScore(text: String?): Int? {
-        if (text.isNullOrBlank() || text.contains("tbd", true)) return null
-        return text.trim().toDoubleOrNull()?.toInt()
+        if (text.isNullOrBlank() || text.contains("tbd", true) || text.equals("tbd", true)) return null
+        // Eliminamos cualquier caracter que no sea número o punto (por si acaso se cuela algo más)
+        val cleanText = text.trim()
+        return cleanText.toDoubleOrNull()?.toInt()
     }
 
-    private fun mapPlatformToMetacritic(platform: String): String? {
-        // Mapeo manual de tus nombres a los de Metacritic
-        return when {
-            platform.contains("PlayStation 5", true) -> "playstation-5"
-            platform.contains("PlayStation 4", true) -> "playstation-4"
-            platform.contains("Switch", true) -> "nintendo-switch"
-            platform.contains("Xbox Series", true) -> "xbox-series-x"
-            platform.contains("PC", true) -> "pc"
-            else -> null // Si no lo conocemos, devolvemos null y no scrapeamos
-        }
-    }
+    // (La función mapPlatformToMetacritic ya no se usa porque vamos a la URL raíz,
+    // pero la puedes dejar o borrar, no molesta).
 }
