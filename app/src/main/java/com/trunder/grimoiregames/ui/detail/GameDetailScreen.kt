@@ -122,10 +122,19 @@ fun GameDetailScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // LÓGICA DE FALLBACK (Respaldo)
-                        // Si metacriticPress es null, usamos igdbPress. Si no, Metacritic.
-                        val pressScoreToDisplay = currentSafeGame.metacriticPress ?: currentSafeGame.igdbPress
-                        val pressLabel = if (currentSafeGame.metacriticPress != null) "Meta Score" else "IGDB Score"
+                        // LÓGICA DE PRIORIDAD DE NOTAS (Meta > OpenCritic > IGDB)
+                        val pressScoreToDisplay = currentSafeGame.metacriticPress
+                            ?: currentSafeGame.opencriticPress
+                            ?: currentSafeGame.igdbPress
+
+                        val pressLabel = when {
+                            currentSafeGame.metacriticPress != null -> "Metacritic"
+                            currentSafeGame.opencriticPress != null -> "OpenCritic"
+                            else -> "IGDB Score"
+                        }
+
+                        // Calcular Color Dinámico
+                        val scoreColor = getScoreColor(pressScoreToDisplay, pressLabel)
 
                         // Lo mismo para usuarios
                         val userScoreToDisplay = currentSafeGame.metacriticUser ?: currentSafeGame.igdbUser
@@ -144,7 +153,8 @@ fun GameDetailScreen(
                             RatingBadge(
                                 score = pressScoreToDisplay,
                                 label = pressLabel, // Cambia el texto dinámicamente
-                                icon = Icons.Default.Newspaper
+                                icon = Icons.Default.Newspaper,
+                                customColor = scoreColor
                             )
 
                             Spacer(modifier = Modifier.width(12.dp))
@@ -153,7 +163,8 @@ fun GameDetailScreen(
                             RatingBadge(
                                 score = userScoreToDisplay,
                                 label = "User Score",
-                                icon = Icons.Default.Person
+                                icon = Icons.Default.Person,
+                                customColor = scoreColor
                             )
 
                             // Icono pequeño desplegable
@@ -362,20 +373,30 @@ fun TechnicalDataRow(label: String, value: String?) {
 }
 
 @Composable
-fun RatingBadge(score: Int?, label: String, icon: androidx.compose.ui.graphics.vector.ImageVector) {
+fun RatingBadge(
+    score: Int?,
+    label: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    customColor: Color? = null // 👇 Nuevo parámetro opcional
+) {
     val scoreText = score?.toString() ?: "--"
-    val color = when {
+
+    // LÓGICA DE COLOR:
+    // Si nos pasan un 'customColor' (Metacritic/OpenCritic/IGDB), usamos ese.
+    // Si es null, calculamos el color semáforo según la nota (para User Score).
+    val finalColor = customColor ?: when {
         score == null -> Color.Gray
-        score >= 75 -> Color(0xFF4CAF50)
-        score >= 50 -> Color(0xFFFFC107)
-        else -> Color(0xFFF44336)
+        score >= 75 -> Color(0xFF4CAF50) // Verde
+        score >= 50 -> Color(0xFFFFC107) // Amarillo
+        else -> Color(0xFFF44336)        // Rojo
     }
 
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        // Círculo con la nota
         Surface(
-            color = color.copy(alpha = 0.2f),
+            color = finalColor.copy(alpha = 0.15f), // Fondo suavito del color elegido
             shape = CircleShape,
-            border = BorderStroke(2.dp, color),
+            border = BorderStroke(2.dp, finalColor),
             modifier = Modifier.size(42.dp)
         ) {
             Box(contentAlignment = Alignment.Center) {
@@ -383,13 +404,19 @@ fun RatingBadge(score: Int?, label: String, icon: androidx.compose.ui.graphics.v
                     text = scoreText,
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Bold,
-                    color = color
+                    color = finalColor // Texto del mismo color fuerte
                 )
             }
         }
+        // Texto debajo (Prensa/Fans)
         Spacer(modifier = Modifier.height(4.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(12.dp), tint = Color.Gray)
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(12.dp),
+                tint = Color.Gray
+            )
             Spacer(modifier = Modifier.width(4.dp))
             Text(
                 text = label,
@@ -401,11 +428,96 @@ fun RatingBadge(score: Int?, label: String, icon: androidx.compose.ui.graphics.v
 }
 
 @Composable
-fun ScorePill(score: Int?, isPress: Boolean) {
+fun ScoreComparisonDialog(
+    game: Game,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text("Tabla de Puntuaciones", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                // Cabecera
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    Spacer(modifier = Modifier.weight(1f))
+                    Text("Prensa", modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, fontSize = 12.sp)
+                    Text("Usuarios", modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, fontSize = 12.sp)
+                }
+
+                HorizontalDivider()
+
+                // 1. METACRITIC (Color dinámico estándar)
+                ScoreRow(
+                    sourceName = "Metacritic",
+                    pressScore = game.metacriticPress,
+                    userScore = game.metacriticUser,
+                    pressColor = getScoreColor(game.metacriticPress, "Metacritic"), // 👈 Dinámico
+                    userColor = getScoreColor(game.metacriticUser, "Metacritic")    // 👈 Dinámico
+                )
+
+                // 2. OPENCRITIC (Color dinámico OpenCritic)
+                ScoreRow(
+                    sourceName = "OpenCritic",
+                    pressScore = game.opencriticPress,
+                    userScore = null, // OpenCritic no tiene user score
+                    pressColor = getScoreColor(game.opencriticPress, "OpenCritic"), // 👈 Dinámico (Mighty/Strong...)
+                    userColor = Color.Gray
+                )
+
+                // 3. IGDB (Color dinámico estándar)
+                ScoreRow(
+                    sourceName = "IGDB",
+                    pressScore = game.igdbPress,
+                    userScore = game.igdbUser,
+                    pressColor = getScoreColor(game.igdbPress, "IGDB"),
+                    userColor = getScoreColor(game.igdbUser, "IGDB")
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Cerrar") }
+        }
+    )
+}
+
+// Actualiza ScoreRow para aceptar colores separados
+@Composable
+fun ScoreRow(sourceName: String, pressScore: Int?, userScore: Int?, pressColor: Color, userColor: Color) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Nombre de la fuente (Usamos el color de prensa como distintivo o gris)
+        Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+            // Bolita identificativa (Opcional: usar color fijo de marca aquí o el dinámico)
+            Surface(color = pressColor, shape = CircleShape, modifier = Modifier.size(8.dp)) {}
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(sourceName, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
+        }
+
+        // Nota Prensa
+        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+            ScorePill(score = pressScore, isPress = true, forcedColor = pressColor)
+        }
+
+        // Nota Usuario
+        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+            ScorePill(score = userScore, isPress = false, forcedColor = userColor)
+        }
+    }
+}
+
+// Actualiza ScorePill para aceptar color forzado
+@Composable
+fun ScorePill(score: Int?, isPress: Boolean, forcedColor: Color? = null) {
     if (score == null) {
         Text("--", color = Color.Gray)
     } else {
-        val color = if (score >= 75) Color(0xFF4CAF50) else if (score >= 50) Color(0xFFFFC107) else Color(0xFFF44336)
+        // Si nos pasan color forzado, lo usamos. Si no, calculamos semáforo básico.
+        val color = forcedColor ?: if (score >= 75) Color(0xFF4CAF50) else if (score >= 50) Color(0xFFFFC107) else Color(0xFFF44336)
+
         Surface(
             color = if (isPress) color else Color.Transparent,
             border = if (!isPress) BorderStroke(1.dp, color) else null,
@@ -420,44 +532,6 @@ fun ScorePill(score: Int?, isPress: Boolean) {
                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
             )
         }
-    }
-}
-
-@Composable
-fun ScoreComparisonDialog(game: Game, onDismiss: () -> Unit) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Tabla de Puntuaciones", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Row(modifier = Modifier.fillMaxWidth()) {
-                    Spacer(modifier = Modifier.weight(1f))
-                    Text("Prensa", modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, fontSize = 12.sp)
-                    Text("Usuarios", modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, fontSize = 12.sp)
-                }
-                HorizontalDivider()
-                ScoreRow("Metacritic", game.metacriticPress, game.metacriticUser, Color(0xFFFFCC33))
-                ScoreRow("OpenCritic", game.opencriticPress, null, Color(0xFFFC430A))
-                ScoreRow("IGDB", game.igdbPress, game.igdbUser, Color(0xFF9147FF))
-            }
-        },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Cerrar") } }
-    )
-}
-
-@Composable
-fun ScoreRow(sourceName: String, pressScore: Int?, userScore: Int?, color: Color) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-            Surface(color = color, shape = CircleShape, modifier = Modifier.size(8.dp)) {}
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(sourceName, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
-        }
-        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) { ScorePill(score = pressScore, isPress = true) }
-        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) { ScorePill(score = userScore, isPress = false) }
     }
 }
 
@@ -532,5 +606,33 @@ fun RegionBadge(region: String) {
             color = contentColor,
             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
         )
+    }
+}
+
+// Función para calcular el color según la fuente y la nota
+fun getScoreColor(score: Int?, source: String): Color {
+    if (score == null) return Color.Gray
+
+    return when (source) {
+        "OpenCritic" -> when {
+            // Escala Oficial OpenCritic
+            score >= 84 -> Color(0xFFFC430A) // Mighty (Naranja Fuego)
+            score >= 75 -> Color(0xFF9B59B6) // Strong (Morado)
+            score >= 60 -> Color(0xFF3498DB) // Fair (Azul)
+            else -> Color(0xFFE74C3C)        // Weak (Rojo)
+        }
+        "Metacritic" -> when {
+            // AHORA SÍ: Tonos "Modernos" (Flat Design) que coinciden con la web actual
+            score >= 75 -> Color(0xFF2ECC71) // Verde Esmeralda (Como en tu captura)
+            score >= 50 -> Color(0xFFF1C40F) // Amarillo Sólido
+            else -> Color(0xFFE74C3C)        // Rojo Alizarin
+        }
+        "IGDB Score", "IGDB" -> when {
+            // Tonos "Clásicos" / Retro (o el estilo que prefieras para IGDB)
+            score >= 75 -> Color(0xFF66CC33) // Verde Lima
+            score >= 50 -> Color(0xFFFFCC33) // Amarillo Huevo
+            else -> Color(0xFFFF0000)        // Rojo Puro
+        }
+        else -> Color.Gray
     }
 }

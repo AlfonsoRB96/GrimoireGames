@@ -26,7 +26,15 @@ object DatabaseModule {
             AppDatabase::class.java,
             "grimoire_database"
         )
-            .fallbackToDestructiveMigration() // Si cambias la tabla, borra y empieza de 0 (útil en dev)
+            // 👇 AÑADIMOS LA MIGRACIÓN DE V3 A V4
+            // Esto ejecutará el script SQL que definimos en AppDatabase para añadir las columnas
+            .addMigrations(AppDatabase.MIGRATION_3_4)
+
+            // 👇 ¡IMPORTANTE! Comentamos esto.
+            // Si lo dejas activado, si la migración falla o Room se lía, BORRARÁ toda la base de datos.
+            // Al comentarlo, si algo falla, la app crasheará (avisándote) en lugar de borrar tus juegos.
+            // .fallbackToDestructiveMigration()
+
             .build()
     }
 

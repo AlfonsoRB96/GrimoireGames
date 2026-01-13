@@ -4,6 +4,7 @@ import com.trunder.grimoiregames.data.dao.GameDao
 import com.trunder.grimoiregames.data.entity.Game
 import com.trunder.grimoiregames.data.remote.IgdbApi
 import com.trunder.grimoiregames.data.remote.MetacriticScraper
+import com.trunder.grimoiregames.data.remote.OpenCriticScraper // Asegúrate de importar esto
 import com.trunder.grimoiregames.data.remote.TwitchAuthApi
 import com.trunder.grimoiregames.data.remote.dto.AgeRatingDto
 import com.trunder.grimoiregames.data.remote.dto.IgdbGameDto
@@ -97,8 +98,12 @@ class GameRepository @Inject constructor(
             }
             // ----------------------------------------------------------
 
-            // Scraper y Mapeo normal
+            // Scraper METACRITIC
             val scrapeResult = MetacriticScraper.scrapScores(details.name, selectedPlatform)
+
+            // 👇 NUEVO: Scraper OPENCRITIC
+            // Llamamos a la API de OpenCritic para obtener el "Top Critic Score"
+            val openCriticScore = OpenCriticScraper.getScore(details.name)
 
             val hdImageUrl = details.cover?.url?.replace("t_thumb", "t_cover_big")?.let { "https:$it" }
             val releaseDateStr = details.firstReleaseDate?.let {
@@ -118,7 +123,11 @@ class GameRepository @Inject constructor(
                 igdbUser = details.rating?.toInt(),
                 metacriticPress = scrapeResult.metaScore,
                 metacriticUser = scrapeResult.userScore,
-                opencriticPress = null,
+
+                // 👇 Guardamos los nuevos datos de OpenCritic
+                opencriticPress = openCriticScore,
+                opencriticUser = null, // No disponible en API pública básica
+
                 releaseDate = releaseDateStr,
                 genre = details.genres?.firstOrNull()?.name ?: "Desconocido",
                 developer = details.involvedCompanies?.find { it.developer }?.company?.name ?: "Desconocido",
@@ -177,6 +186,10 @@ class GameRepository @Inject constructor(
 
             // Mapeo y Guardado
             val scrapeResult = MetacriticScraper.scrapScores(details.name, game.platform)
+
+            // 👇 NUEVO: Scraper OPENCRITIC (Actualización)
+            val openCriticScore = OpenCriticScraper.getScore(details.name)
+
             val hdImageUrl = details.cover?.url?.replace("t_thumb", "t_cover_big")?.let { "https:$it" }
             val releaseDateStr = details.firstReleaseDate?.let {
                 java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date(it * 1000))
@@ -188,6 +201,11 @@ class GameRepository @Inject constructor(
                 igdbUser = details.rating?.toInt(),
                 metacriticPress = scrapeResult.metaScore,
                 metacriticUser = scrapeResult.userScore,
+
+                // 👇 Actualizamos OpenCritic
+                opencriticPress = openCriticScore,
+                opencriticUser = null,
+
                 releaseDate = releaseDateStr,
                 genre = details.genres?.firstOrNull()?.name ?: "Desconocido",
                 developer = details.involvedCompanies?.find { it.developer }?.company?.name ?: "Desconocido",

@@ -4,32 +4,44 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.trunder.grimoiregames.data.dao.GameDao
 import com.trunder.grimoiregames.data.entity.Game
 
 // 1. Definimos las tablas (entities) y la versión de la BBDD.
-@Database(entities = [Game::class], version = 3, exportSchema = false)
+@Database(entities = [Game::class], version = 4, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
 
     // 2. Exponemos los DAOs
     abstract fun gameDao(): GameDao
 
-    // 3. Patrón Singleton (Para que solo exista una instancia de la BBDD)
+    // 3. Patrón Singleton
     companion object {
         @Volatile
         private var Instance: AppDatabase? = null
 
+        // 🔴 DEFINIMOS LA MIGRACIÓN DE V3 A V4
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE games ADD COLUMN opencriticPress INTEGER DEFAULT NULL")
+                db.execSQL("ALTER TABLE games ADD COLUMN opencriticUser INTEGER DEFAULT NULL")
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
-            // Si la instancia ya existe, la devolvemos.
-            // Si no, la creamos en un bloque sincronizado (Thread Safe).
             return Instance ?: synchronized(this) {
                 Room.databaseBuilder(
                     context,
                     AppDatabase::class.java,
-                    "grimoire_database" // Nombre del archivo físico en el móvil
+                    "grimoire_database"
                 )
-                    // WIPE DATA ON SCHEMA CHANGE: Si cambias la tabla, borra todo (útil para dev)
-                    .fallbackToDestructiveMigration()
+                    // 🔴 AÑADIMOS LA MIGRACIÓN
+                    .addMigrations(MIGRATION_3_4)
+
+                    // 🔴 COMENTAMOS ESTO PARA QUE NO BORRE DATOS SI ALGO FALLA
+                    // .fallbackToDestructiveMigration()
+
                     .build()
                     .also { Instance = it }
             }
