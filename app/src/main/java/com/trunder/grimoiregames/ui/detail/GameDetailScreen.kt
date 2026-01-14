@@ -21,11 +21,14 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -42,11 +45,10 @@ fun GameDetailScreen(
     onBackClick: () -> Unit,
     viewModel: GameDetailViewModel = hiltViewModel()
 ) {
-    // 1. OBSERVAMOS EL JUEGO DESDE EL VIEWMODEL (FLOW -> STATE)
-    // Esto asegura que la UI se actualice automáticamente cuando la BD cambie.
+    // 1. OBSERVAMOS EL JUEGO DESDE EL VIEWMODEL
     val gameState by viewModel.game.collectAsState(initial = null)
 
-    // Estado local solo para cosas de UI efímeras (como diálogos)
+    // Estado local UI
     var showScoreDialog by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -64,7 +66,6 @@ fun GameDetailScreen(
             )
         }
     ) { padding ->
-        // Si el juego es null, mostramos carga. Si no, mostramos contenido.
         if (gameState == null) {
             Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
@@ -78,17 +79,42 @@ fun GameDetailScreen(
                     .verticalScroll(rememberScrollState())
                     .padding(padding)
             ) {
-                // 1. IMAGEN DE CABECERA
-                AsyncImage(
-                    model = currentSafeGame.imageUrl,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
+                // 1. CABECERA CINEMÁTICA
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(250.dp)
-                )
+                        .height(380.dp)
+                ) {
+                    // CAPA A: FONDO AMBIENTAL (Blur + Oscuro)
+                    AsyncImage(
+                        model = currentSafeGame.imageUrl,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .blur(radius = 25.dp)
+                            .drawWithContent {
+                                drawContent()
+                                drawRect(Color.Black.copy(alpha = 0.5f))
+                            }
+                    )
+
+                    // CAPA B: PÓSTER PRINCIPAL (Nítido y completo)
+                    AsyncImage(
+                        model = currentSafeGame.imageUrl,
+                        contentDescription = currentSafeGame.title,
+                        contentScale = ContentScale.FillHeight,
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .fillMaxHeight()
+                            // 🔴 CAMBIO AQUÍ: Usamos RectangleShape para esquinas cuadradas
+                            .shadow(elevation = 16.dp, shape = RectangleShape)
+                            .clip(RectangleShape)
+                    )
+                }
 
                 Column(modifier = Modifier.padding(16.dp)) {
+                    // ... (El resto del código sigue exactamente igual) ...
                     // 2. TÍTULO Y PLATAFORMA
                     Text(
                         text = currentSafeGame.title,
@@ -96,7 +122,7 @@ fun GameDetailScreen(
                         fontWeight = FontWeight.Bold
                     )
 
-                    // Envoltorio horizontal: Plataforma + Badge Región
+                    // Plataforma + Badge Región
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.padding(vertical = 4.dp)
@@ -106,16 +132,13 @@ fun GameDetailScreen(
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.primary
                         )
-
                         Spacer(modifier = Modifier.width(8.dp))
-
-                        // BADGE DE REGIÓN
                         RegionBadge(region = currentSafeGame.region)
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // 3. FILA DE INFO RÁPIDA (Notas, Lanzamiento, Género, PEGI)
+                    // 3. FILA DE INFO RÁPIDA
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -123,7 +146,6 @@ fun GameDetailScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // LÓGICA DE PRIORIDAD DE NOTAS (Meta > OpenCritic > IGDB)
                         val pressScoreToDisplay = currentSafeGame.metacriticPress
                             ?: currentSafeGame.opencriticPress
                             ?: currentSafeGame.igdbPress
@@ -134,14 +156,10 @@ fun GameDetailScreen(
                             else -> "IGDB Score"
                         }
 
-                        // Calcular Color Dinámico
                         val scoreColor = getScoreColor(pressScoreToDisplay, pressLabel)
-
-                        // Lo mismo para usuarios
                         val userScoreToDisplay = currentSafeGame.metacriticUser ?: currentSafeGame.igdbUser
-                        // userLabel siempre suele ser "User Score", pero puedes poner "IGDB User" si quieres.
 
-                        // A. LAS NOTAS (Prensa + Fans juntas) - CLICKABLE
+                        // A. NOTAS
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
@@ -150,42 +168,36 @@ fun GameDetailScreen(
                                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
                                 .padding(horizontal = 8.dp, vertical = 4.dp)
                         ) {
-                            // Nota Prensa (Prioridad Metacritic > IGDB)
                             RatingBadge(
                                 score = pressScoreToDisplay,
-                                label = pressLabel, // Cambia el texto dinámicamente
+                                label = pressLabel,
                                 icon = Icons.Default.Newspaper,
                                 customColor = scoreColor
                             )
-
                             Spacer(modifier = Modifier.width(12.dp))
-
-                            // Nota Fans (Prioridad Metacritic > IGDB)
                             RatingBadge(
                                 score = userScoreToDisplay,
                                 label = "User Score",
                                 icon = Icons.Default.Person,
                                 customColor = scoreColor
                             )
-
-                            // Icono pequeño desplegable
                             Spacer(modifier = Modifier.width(4.dp))
                             Icon(
                                 imageVector = Icons.Default.ArrowDropDown,
-                                contentDescription = "Ver más notas",
+                                contentDescription = "Ver más",
                                 tint = Color.Gray,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
 
-                        // B. INFO TEXTUAL (Se mantiene igual)
+                        // B. INFO TEXTUAL
                         InfoItem(label = "Año", value = currentSafeGame.releaseDate?.take(4) ?: "TBA")
                         InfoItem(label = "Género", value = currentSafeGame.genre?.split(",")?.firstOrNull() ?: "N/A")
                     }
 
                     HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
 
-                    // 4. SINOPSIS CON TRADUCCIÓN
+                    // 4. SINOPSIS
                     val translatedDescription by viewModel.translatedDescription.collectAsState()
                     val isTranslating by viewModel.isTranslating.collectAsState()
 
@@ -194,13 +206,8 @@ fun GameDetailScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "Sinopsis",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.SemiBold
-                        )
+                        Text("Sinopsis", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
 
-                        // Botón Traducir (solo si no hay traducción ya hecha)
                         if (translatedDescription == null) {
                             if (isTranslating) {
                                 CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
@@ -209,22 +216,16 @@ fun GameDetailScreen(
                                     onClick = { viewModel.translateDescription(currentSafeGame.description) },
                                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Translate,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(16.dp)
-                                    )
+                                    Icon(Icons.Default.Translate, null, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Text("Traducir", style = MaterialTheme.typography.labelMedium)
                                 }
                             }
                         }
                     }
-
                     Spacer(modifier = Modifier.height(8.dp))
 
                     val descriptionToShow = translatedDescription ?: currentSafeGame.description ?: "No hay descripción disponible."
-
                     AnimatedContent(targetState = descriptionToShow, label = "textChange") { text ->
                         Text(
                             text = text,
@@ -239,8 +240,6 @@ fun GameDetailScreen(
                     // 5. DATOS TÉCNICOS
                     TechnicalDataRow(label = "Desarrollador", value = currentSafeGame.developer)
                     TechnicalDataRow(label = "Editor", value = currentSafeGame.publisher)
-
-                    // CLASIFICACIÓN EDADES
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -252,16 +251,10 @@ fun GameDetailScreen(
 
                     HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
 
-                    // 6. SECCIÓN DE PROGRESO PERSONAL
-                    Text(
-                        text = "Tu Progreso",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.SemiBold
-                    )
-
+                    // 6. PROGRESO PERSONAL
+                    Text("Tu Progreso", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // --- ESTADO (Backlog/Playing/Completed) ---
                     Text("Estado", style = MaterialTheme.typography.labelLarge)
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
@@ -278,70 +271,42 @@ fun GameDetailScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // --- SELECTOR DE TIER (AUTOGUARDADO) ---
-                    // Pasamos el userRating que viene de la BD para que se ilumine el correcto
+                    // TIER SELECTOR
                     TierSelector(
                         currentRating = currentSafeGame.userRating,
-                        onTierSelected = { newRating ->
-                            // Guardamos en BD al instante
-                            viewModel.onUserRatingChanged(currentSafeGame, newRating)
-                        }
+                        onTierSelected = { newRating -> viewModel.onUserRatingChanged(currentSafeGame, newRating) }
                     )
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // --- HORAS DE JUEGO (Fase 2: Input Mejorado) ---
-
-                    // 1. Variable local para controlar el texto y el placeholder
+                    // HORAS DE JUEGO
                     var hoursText by remember(currentSafeGame.hoursPlayed) {
-                        mutableStateOf(
-                            if ((currentSafeGame.hoursPlayed ?: 0) == 0) ""
-                            else currentSafeGame.hoursPlayed.toString()
-                        )
+                        mutableStateOf(if ((currentSafeGame.hoursPlayed ?: 0) == 0) "" else currentSafeGame.hoursPlayed.toString())
                     }
 
                     OutlinedTextField(
                         value = hoursText,
                         onValueChange = { newValue ->
-                            // 2. Filtro: Solo dígitos
                             if (newValue.all { it.isDigit() }) {
-                                // Actualizamos la variable visual (String)
                                 hoursText = newValue
-
-                                // 3. Calculamos la variable 'hours' (Int) que necesita tu función
-                                // Si el texto está vacío, asumimos que es 0
                                 val hours = newValue.toIntOrNull() ?: 0
-
-                                // 4. Llamamos a TU función original pasando el juego y las horas calculadas
                                 viewModel.onPlayTimeChanged(currentSafeGame, hours)
                             }
                         },
                         label = { Text("Horas Jugadas") },
-
-                        // Placeholder para que se vea el 0 gris cuando borras
-                        placeholder = {
-                            Text("0", color = androidx.compose.ui.graphics.Color.Gray.copy(alpha = 0.5f))
-                        },
-
+                        placeholder = { Text("0", color = Color.Gray.copy(alpha = 0.5f)) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Number,
-                            imeAction = ImeAction.Done
-                        ),
-                        prefix = { Icon(Icons.Default.Timer, contentDescription = null) }
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+                        prefix = { Icon(Icons.Default.Timer, null) }
                     )
 
                     Spacer(modifier = Modifier.height(80.dp))
                 }
             }
 
-            // DIÁLOGO DE PUNTUACIONES (MODAL)
             if (showScoreDialog) {
-                ScoreComparisonDialog(
-                    game = currentSafeGame,
-                    onDismiss = { showScoreDialog = false }
-                )
+                ScoreComparisonDialog(game = currentSafeGame, onDismiss = { showScoreDialog = false })
             }
         }
     }
