@@ -2,6 +2,7 @@ package com.trunder.grimoiregames.ui.detail
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -12,9 +13,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.Newspaper
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material3.*
@@ -38,6 +36,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.trunder.grimoiregames.data.entity.Game
+import com.trunder.grimoiregames.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -138,14 +137,15 @@ fun GameDetailScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // 3. FILA DE INFO RÁPIDA
+                    // 3. FILA DE INFO RÁPIDA (Notas, Lanzamiento, Género)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 8.dp),
+                            .padding(vertical = 12.dp), // Un pelín más de aire vertical
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        // CÁLCULO DE NOTAS
                         val pressScoreToDisplay = currentSafeGame.metacriticPress
                             ?: currentSafeGame.opencriticPress
                             ?: currentSafeGame.igdbPress
@@ -159,39 +159,55 @@ fun GameDetailScreen(
                         val scoreColor = getScoreColor(pressScoreToDisplay, pressLabel)
                         val userScoreToDisplay = currentSafeGame.metacriticUser ?: currentSafeGame.igdbUser
 
-                        // A. NOTAS
+                        // A. NOTAS (Logo + Prensa + User)
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
                                 .clip(RoundedCornerShape(8.dp))
                                 .clickable { showScoreDialog = true }
                                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                                .padding(horizontal = 12.dp, vertical = 6.dp) // Un poco más de padding lateral
                         ) {
-                            RatingBadge(
-                                score = pressScoreToDisplay,
-                                label = pressLabel,
-                                icon = Icons.Default.Newspaper,
-                                customColor = scoreColor
+                            // 1. EL LOGO DE LA FUENTE (A la izquierda)
+                            Image(
+                                painter = androidx.compose.ui.res.painterResource(id = getScoreIconRes(pressLabel)),
+                                contentDescription = pressLabel,
+                                modifier = Modifier.size(28.dp), // Un pelín más grande para que se vea el detalle
+                                contentScale = ContentScale.Fit
+                            )
+
+                            // Separador vertical sutil entre logo y notas
+                            Spacer(modifier = Modifier.width(12.dp))
+                            // Opcional: Una línea vertical finita queda muy elegante
+                            VerticalDivider(
+                                modifier = Modifier.height(24.dp),
+                                thickness = 1.dp,
+                                color = scoreColor.copy(alpha = 0.3f)
                             )
                             Spacer(modifier = Modifier.width(12.dp))
+
+                            // 2. NOTA PRENSA
                             RatingBadge(
-                                score = userScoreToDisplay,
-                                label = "User Score",
-                                icon = Icons.Default.Person,
+                                score = pressScoreToDisplay,
+                                label = "Score",
                                 customColor = scoreColor
                             )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Icon(
-                                imageVector = Icons.Default.ArrowDropDown,
-                                contentDescription = "Ver más",
-                                tint = Color.Gray,
-                                modifier = Modifier.size(20.dp)
+
+                            Spacer(modifier = Modifier.width(12.dp))
+
+                            // 3. NOTA USER
+                            RatingBadge(
+                                score = userScoreToDisplay,
+                                label = "User",
+                                customColor = scoreColor
                             )
                         }
 
-                        // B. INFO TEXTUAL
+                        // B. INFO TEXTUAL (Año y Género)
+                        // Al usar SpaceBetween, esto se alineará a la derecha de las notas
                         InfoItem(label = "Año", value = currentSafeGame.releaseDate?.take(4) ?: "TBA")
+
+                        // Cogemos solo el primer género para que no descuadre el diseño si hay muchos
                         InfoItem(label = "Género", value = currentSafeGame.genre?.split(",")?.firstOrNull() ?: "N/A")
                     }
 
@@ -367,55 +383,43 @@ fun TechnicalDataRow(label: String, value: String?) {
 @Composable
 fun RatingBadge(
     score: Int?,
-    label: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    customColor: Color? = null // 👇 Nuevo parámetro opcional
+    label: String, // Ahora aquí recibirá "Prensa" o "User"
+    customColor: Color? = null
 ) {
     val scoreText = score?.toString() ?: "--"
 
-    // LÓGICA DE COLOR:
-    // Si nos pasan un 'customColor' (Metacritic/OpenCritic/IGDB), usamos ese.
-    // Si es null, calculamos el color semáforo según la nota (para User Score).
     val finalColor = customColor ?: when {
         score == null -> Color.Gray
-        score >= 75 -> Color(0xFF4CAF50) // Verde
-        score >= 50 -> Color(0xFFFFC107) // Amarillo
-        else -> Color(0xFFF44336)        // Rojo
+        score >= 75 -> Color(0xFF4CAF50)
+        score >= 50 -> Color(0xFFFFC107)
+        else -> Color(0xFFF44336)
     }
 
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        // Círculo con la nota
+        // Círculo con la nota (Mismo tamaño grande)
         Surface(
-            color = finalColor.copy(alpha = 0.15f), // Fondo suavito del color elegido
+            color = finalColor.copy(alpha = 0.15f),
             shape = CircleShape,
             border = BorderStroke(2.dp, finalColor),
-            modifier = Modifier.size(42.dp)
+            modifier = Modifier.size(42.dp) // Mantenemos el tamaño del círculo
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Text(
                     text = scoreText,
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Bold,
-                    color = finalColor // Texto del mismo color fuerte
+                    color = finalColor
                 )
             }
         }
-        // Texto debajo (Prensa/Fans)
-        Spacer(modifier = Modifier.height(4.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                modifier = Modifier.size(12.dp),
-                tint = Color.Gray
-            )
-            Spacer(modifier = Modifier.width(4.dp))
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall,
-                color = Color.Gray
-            )
-        }
+
+        // Texto debajo (Compacto y sin icono)
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall, // Texto pequeñito
+            color = Color.Gray,
+            modifier = Modifier.padding(top = 2.dp) // Muy pegadito al círculo
+        )
     }
 }
 
@@ -427,15 +431,34 @@ fun ScoreComparisonDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
-            Text("Tabla de Puntuaciones", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text(
+                text = "Tabla de Puntuaciones",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.Center
+            )
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 // Cabecera
-                Row(modifier = Modifier.fillMaxWidth()) {
-                    Spacer(modifier = Modifier.weight(1f))
-                    Text("Prensa", modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, fontSize = 12.sp)
-                    Text("Usuarios", modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, fontSize = 12.sp)
+                Row(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
+                    Spacer(modifier = Modifier.weight(2f))
+                    Text(
+                        text = "Prensa",
+                        modifier = Modifier.weight(1f),
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center,
+                        fontSize = 12.sp
+                    )
+
+                    Text(
+                        text = "Usuarios",
+                        modifier = Modifier.weight(1f),
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center,
+                        fontSize = 12.sp
+                    )
                 }
 
                 HorizontalDivider()
@@ -478,23 +501,40 @@ fun ScoreComparisonDialog(
 @Composable
 fun ScoreRow(sourceName: String, pressScore: Int?, userScore: Int?, pressColor: Color, userColor: Color) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 12.dp), // ⬆️ Un poco más de aire vertical porque ahora es más alto
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Nombre de la fuente (Usamos el color de prensa como distintivo o gris)
-        Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-            // Bolita identificativa (Opcional: usar color fijo de marca aquí o el dinámico)
-            Surface(color = pressColor, shape = CircleShape, modifier = Modifier.size(8.dp)) {}
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(sourceName, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
+        // --- COLUMNA 1: ICONO ARRIBA / NOMBRE ABAJO (Weight 2f) ---
+        Column(
+            modifier = Modifier.weight(2f),
+            horizontalAlignment = Alignment.CenterHorizontally // Centrado perfecto
+        ) {
+            // 1. Icono (Un pelín más grande luce mejor así)
+            Image(
+                painter = androidx.compose.ui.res.painterResource(id = getScoreIconRes(sourceName)),
+                contentDescription = null,
+                modifier = Modifier.size(28.dp)
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // 2. Nombre (Texto más pequeño y gris para no competir con el logo)
+            Text(
+                text = sourceName,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                color = Color.Gray
+            )
         }
 
-        // Nota Prensa
+        // --- COLUMNA 2: PRENSA (Weight 1f) ---
         Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
             ScorePill(score = pressScore, isPress = true, forcedColor = pressColor)
         }
 
-        // Nota Usuario
+        // --- COLUMNA 3: USUARIOS (Weight 1f) ---
         Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
             ScorePill(score = userScore, isPress = false, forcedColor = userColor)
         }
@@ -505,24 +545,42 @@ fun ScoreRow(sourceName: String, pressScore: Int?, userScore: Int?, pressColor: 
 @Composable
 fun ScorePill(score: Int?, isPress: Boolean, forcedColor: Color? = null) {
     if (score == null) {
-        Text("--", color = Color.Gray)
+        // Hacemos el guión un poco más grande también para que no desentone
+        Text(
+            text = "--",
+            color = Color.LightGray,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
     } else {
-        // Si nos pasan color forzado, lo usamos. Si no, calculamos semáforo básico.
+        // Tu lógica de colores original (la mantenemos intacta)
         val color = forcedColor ?: if (score >= 75) Color(0xFF4CAF50) else if (score >= 50) Color(0xFFFFC107) else Color(0xFFF44336)
 
         Surface(
+            // LÓGICA DE FONDO: Si es prensa -> Color Sólido. Si es usuario -> Transparente
             color = if (isPress) color else Color.Transparent,
-            border = if (!isPress) BorderStroke(1.dp, color) else null,
-            shape = RoundedCornerShape(4.dp),
-            modifier = Modifier.padding(4.dp)
+            // LÓGICA DE BORDE: Si es usuario -> Borde del color. Si es prensa -> Sin borde
+            border = if (!isPress) BorderStroke(2.dp, color) else null, // Subí a 2.dp para que se note más
+
+            shape = RoundedCornerShape(8.dp), // UPGRADE: Bordes un poco más redondeados (más moderno)
+            modifier = Modifier
+                .padding(4.dp)
+                // HACK: Forzamos un ancho mínimo para que el "9" ocupe lo mismo que el "90"
+                .defaultMinSize(minWidth = 48.dp)
         ) {
-            Text(
-                text = score.toString(),
-                color = if (isPress) Color.White else color,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-            )
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp) // UPGRADE: Más "aire" dentro de la caja
+            ) {
+                Text(
+                    text = score.toString(),
+                    color = if (isPress) Color.White else color,
+                    // UPGRADE CRÍTICO: Cambiamos de labelMedium a titleMedium
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+            }
         }
     }
 }
@@ -626,5 +684,17 @@ fun getScoreColor(score: Int?, source: String): Color {
             else -> Color(0xFFFF0000)        // Rojo Puro
         }
         else -> Color.Gray
+    }
+}
+
+// Función para obtener el icono según la fuente
+// Asegúrate de importar R desde tu paquete (ej: com.trunder.grimoiregames.R)
+@Composable
+fun getScoreIconRes(source: String): Int {
+    return when (source) {
+        "OpenCritic" -> R.drawable.ic_logo_opencritic
+        "Metacritic" -> R.drawable.ic_logo_metacritic
+        "IGDB Score", "IGDB" -> R.drawable.ic_logo_igdb
+        else -> R.drawable.ic_logo_igdb // Fallback (o un icono genérico de 'gamepad')
     }
 }
