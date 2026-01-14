@@ -156,11 +156,25 @@ class LibraryViewModel @Inject constructor(
             result = result.filter { (it.releaseDate?.take(4)) in currentFilters.releaseYears }
         }
 
-        // 🆕 3. FILTRO DE HORAS
+        // 🆕 3. FILTRO DE HORAS (LÓGICA ACUMULATIVA / UMBRALES)
         if (currentFilters.hourRanges.isNotEmpty()) {
             result = result.filter { game ->
-                val label = getHourGroupLabel(game.hoursPlayed ?: 0)
-                label in currentFilters.hourRanges
+                val hours = game.hoursPlayed ?: 0
+
+                // El juego pasa si cumple CUALQUIERA de los umbrales seleccionados
+                currentFilters.hourRanges.any { filterLabel ->
+                    if (filterLabel == "Sin empezar") {
+                        // Caso especial: Queremos exactamente 0 horas
+                        hours == 0
+                    } else {
+                        // Caso acumulativo: "+10 horas" significa ">= 10"
+                        // Truco: Extraemos solo los dígitos del texto ("+50 horas" -> "50")
+                        val minHours = filterLabel.filter { it.isDigit() }.toIntOrNull() ?: Int.MAX_VALUE
+
+                        // La condición matemática: ¿Mis horas superan este umbral?
+                        hours >= minHours
+                    }
+                }
             }
         }
 
