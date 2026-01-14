@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -289,20 +290,46 @@ fun GameDetailScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // --- HORAS DE JUEGO ---
+                    // --- HORAS DE JUEGO (Fase 2: Input Mejorado) ---
+
+                    // 1. Variable local para controlar el texto y el placeholder
+                    var hoursText by remember(currentSafeGame.hoursPlayed) {
+                        mutableStateOf(
+                            if ((currentSafeGame.hoursPlayed ?: 0) == 0) ""
+                            else currentSafeGame.hoursPlayed.toString()
+                        )
+                    }
+
                     OutlinedTextField(
-                        value = if ((currentSafeGame.hoursPlayed ?: 0) == 0) "" else currentSafeGame.hoursPlayed.toString(),
+                        value = hoursText,
                         onValueChange = { newValue ->
+                            // 2. Filtro: Solo dígitos
                             if (newValue.all { it.isDigit() }) {
+                                // Actualizamos la variable visual (String)
+                                hoursText = newValue
+
+                                // 3. Calculamos la variable 'hours' (Int) que necesita tu función
+                                // Si el texto está vacío, asumimos que es 0
                                 val hours = newValue.toIntOrNull() ?: 0
+
+                                // 4. Llamamos a TU función original pasando el juego y las horas calculadas
                                 viewModel.onPlayTimeChanged(currentSafeGame, hours)
                             }
                         },
                         label = { Text("Horas Jugadas") },
-                        placeholder = { Text("0") },
+
+                        // Placeholder para que se vea el 0 gris cuando borras
+                        placeholder = {
+                            Text("0", color = androidx.compose.ui.graphics.Color.Gray.copy(alpha = 0.5f))
+                        },
+
                         modifier = Modifier.fillMaxWidth(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        prefix = { Icon(Icons.Default.Timer, null) }
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Number,
+                            imeAction = ImeAction.Done
+                        ),
+                        prefix = { Icon(Icons.Default.Timer, contentDescription = null) }
                     )
 
                     Spacer(modifier = Modifier.height(80.dp))

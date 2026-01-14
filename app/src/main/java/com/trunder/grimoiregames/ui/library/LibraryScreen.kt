@@ -4,7 +4,6 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.horizontalScroll // New import
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.*
@@ -139,9 +138,11 @@ fun LibraryScreen(
                                     "Desarrolladora" -> activeFilters.developers.isNotEmpty()
                                     "Distribuidora" -> activeFilters.publishers.isNotEmpty()
                                     "Clasificación por edades" -> activeFilters.ageRatings.isNotEmpty()
-                                    "Tier Personal" -> activeFilters.tiers.isNotEmpty() // Added Check
+                                    "Tier Personal" -> activeFilters.tiers.isNotEmpty()
                                     "Metacritic" -> activeFilters.metacriticRanges.isNotEmpty()
                                     "Año de Lanzamiento" -> activeFilters.releaseYears.isNotEmpty()
+                                    // 🔴 CORRECCIÓN 1: Coincidir con el nombre del ViewModel
+                                    "Horas de Juego" -> activeFilters.hourRanges.isNotEmpty()
                                     else -> false
                                 }
                                 Row(
@@ -178,11 +179,6 @@ fun LibraryScreen(
                                         "F" to Color(0xFF999999),
                                         "Sin Puntuación" to Color.LightGray
                                     )
-
-                                    // Render as a grid or list, here using a simple Column since LazyColumn expects items
-                                    // But since we are inside LazyColumn 'else' block, we can just iterate.
-                                    // However, for Tiers, we want to control the look.
-                                    // Let's iterate the options (which are S+, S, A...)
 
                                     Column {
                                         options.forEach { option ->
@@ -231,6 +227,8 @@ fun LibraryScreen(
                                         "Clasificación por edades" -> option in activeFilters.ageRatings
                                         "Metacritic" -> option in activeFilters.metacriticRanges
                                         "Año de Lanzamiento" -> option in activeFilters.releaseYears
+                                        // 🔴 CORRECCIÓN 2: Coincidir con el nombre del ViewModel
+                                        "Horas de Juego" -> option in activeFilters.hourRanges
                                         else -> false
                                     }
                                     Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp)) {
@@ -278,7 +276,8 @@ fun LibraryScreen(
                             Text("Grimoire Games")
                             val totalFilters = activeFilters.platforms.size + activeFilters.genres.size +
                                     activeFilters.statuses.size + activeFilters.developers.size +
-                                    activeFilters.releaseYears.size + activeFilters.tiers.size // Added Tier count
+                                    activeFilters.releaseYears.size + activeFilters.tiers.size +
+                                    activeFilters.hourRanges.size // 🆕 Contamos también el filtro de horas
                             if (totalFilters > 0) {
                                 Text("Filtros activos: $totalFilters", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                             }
@@ -302,7 +301,9 @@ fun LibraryScreen(
                                 DropdownMenuItem(text = { Text("Alfabético") }, onClick = { viewModel.onSortChange(SortOption.TITLE); showSortMenu = false })
                                 DropdownMenuItem(text = { Text("Plataforma") }, onClick = { viewModel.onSortChange(SortOption.PLATFORM); showSortMenu = false })
                                 DropdownMenuItem(text = { Text("Estado") }, onClick = { viewModel.onSortChange(SortOption.STATUS); showSortMenu = false })
-                                DropdownMenuItem(text = { Text("Tier") }, onClick = { viewModel.onSortChange(SortOption.TIER); showSortMenu = false }) // Added Tier Sort
+                                DropdownMenuItem(text = { Text("Tier") }, onClick = { viewModel.onSortChange(SortOption.TIER); showSortMenu = false })
+                                DropdownMenuItem(text = { Text("Horas de Juego") }, onClick = { viewModel.onSortChange(SortOption.HOURS); showSortMenu = false }
+                                )
                             }
                         }
                     }
