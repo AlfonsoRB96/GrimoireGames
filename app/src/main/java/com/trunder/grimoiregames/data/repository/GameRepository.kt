@@ -229,138 +229,6 @@ class GameRepository @Inject constructor(
     suspend fun updateGame(game: Game) = gameDao.updateGame(game)
     fun getGameById(id: Int) = gameDao.getGameById(id)
 
-    // --- MAPEO INTELIGENTE DE EDAD ---
-    // --- MAPEO DE EDAD BASADO EN REGIÓN (GLOBAL) ---
-    private fun resolveAgeRating(ratings: List<AgeRatingDto>?, targetRegion: String): String? {
-        if (ratings.isNullOrEmpty()) return null
-
-        fun getInfo(dto: AgeRatingDto): Pair<Int, Int> {
-            val cat = dto.category ?: dto.organization ?: -1
-            val rat = dto.rating ?: dto.ratingCategory ?: -1
-            return Pair(cat, rat)
-        }
-
-        // DICCIONARIO DE ORGANIZACIONES IGDB
-        // 1=ESRB, 2=PEGI, 3=CERO, 4=USK, 5=GRAC, 6=ClassInd, 7=ACB
-        val targetOrgId = when (targetRegion) {
-            "NTSC-U"  -> 1 // USA
-            "PAL EU"  -> 2 // Europa (Default)
-            "PAL"     -> 2 // Compatibilidad hacia atrás
-            "NTSC-J"  -> 3 // Japón
-            "PAL DE"  -> 4 // Alemania (USK)
-            "NTSC-K"  -> 5 // Corea (GRAC)
-            "NTSC-BR" -> 6 // Brasil (ClassInd)
-            "PAL AU"  -> 7 // Australia (ACB)
-            else      -> 2 // Por defecto PEGI
-        }
-
-        // 1. Buscamos la clasificación exacta para esa región
-        val targetRating = ratings.find { (it.category ?: it.organization) == targetOrgId }
-
-        if (targetRating != null) {
-            return mapRatingToString(targetRating)
-        }
-
-        // 2. Fallback inteligente:
-        // Si pusiste "PAL DE" (Alemania) pero el juego no tiene USK, intenta devolver PEGI (Europa).
-        if (targetOrgId == 4) { // Si buscábamos USK y falló...
-            ratings.find { (it.category ?: it.organization) == 2 }?.let { return mapRatingToString(it) }
-        }
-
-        // 3. Último recurso: Devuelve lo primero que pille (mejor que null)
-        ratings.firstOrNull()?.let { return mapRatingToString(it) }
-
-        return null
-    }
-
-    private fun mapRatingToString(dto: AgeRatingDto): String {
-        // Aseguramos que si son nulos, usamos -1 para ir al else
-        val cat = dto.category ?: dto.organization ?: -1
-        val rat = dto.rating ?: dto.ratingCategory ?: -1
-
-        return when (cat) {
-            1 -> { // ESRB
-                when (rat) {
-                    // AÑADIDO "ESRB" EXPLICITO A TODOS PARA QUE EL MAPPER NO FALLE
-                    6 -> "ESRB RP"
-                    7 -> "ESRB EC"
-                    8 -> "ESRB E"
-                    9 -> "ESRB E10+" // 👈 CORREGIDO: Antes era "ESRB 10+", ahora el Mapper lo reconocerá
-                    10 -> "ESRB T"
-                    11 -> "ESRB M"
-                    12 -> "ESRB AO"
-                    else -> "ESRB ($rat)"
-                }
-            }
-            2 -> { // PEGI
-                when (rat) {
-                    1 -> "PEGI 3"
-                    2 -> "PEGI 7"
-                    3 -> "PEGI 12"
-                    4 -> "PEGI 16"
-                    5 -> "PEGI 18"
-                    // Parche de seguridad por si IGDB manda basura (el famoso caso 9)
-                    9 -> "ESRB E10+" // Si llega un 9 en categoría PEGI, asumimos que es ESRB colado
-                    else -> "PEGI ($rat)"
-                }
-            }
-            3 -> { // CERO (Japón)
-                when (rat) {
-                    13 -> "CERO A"
-                    14 -> "CERO B"
-                    15 -> "CERO C"
-                    16 -> "CERO D"
-                    17 -> "CERO Z"
-                    else -> "CERO ($rat)"
-                }
-            }
-            4 -> { // USK (Alemania)
-                when (rat) {
-                    18 -> "USK 0"
-                    19 -> "USK 6"
-                    20 -> "USK 12"
-                    21 -> "USK 16"
-                    22 -> "USK 18"
-                    else -> "USK ($rat)"
-                }
-            }
-            5 -> { // GRAC (Corea)
-                when (rat) {
-                    23 -> "GRAC ALL"
-                    24 -> "GRAC 12"
-                    25 -> "GRAC 15"
-                    26 -> "GRAC 18"
-                    39 -> "GRAC Test"
-                    else -> "GRAC ($rat)"
-                }
-            }
-            6 -> { // ClassInd (Brasil)
-                when (rat) {
-                    // AÑADIDO PREFIJO "ClassInd" PARA QUE EL MAPPER LO DETECTE
-                    27 -> "ClassInd L" // Antes "L (All)" -> Mapper fallaba
-                    28 -> "ClassInd 10" // Antes "10" -> Mapper fallaba
-                    29 -> "ClassInd 12"
-                    30 -> "ClassInd 14"
-                    31 -> "ClassInd 16"
-                    32 -> "ClassInd 18"
-                    else -> "ClassInd ($rat)"
-                }
-            }
-            7 -> { // ACB (Australia)
-                when (rat) {
-                    33 -> "ACB G"
-                    34 -> "ACB PG"
-                    35 -> "ACB M"
-                    36 -> "ACB MA15+"
-                    37 -> "ACB R18+"
-                    38 -> "ACB RC"
-                    else -> "ACB ($rat)"
-                }
-            }
-            else -> "UNK ($rat)"
-        }
-    }
-
     // Funciones para Backup/Restore
     suspend fun getAllGamesSync(): List<Game> = gameDao.getAllGamesList()
 
@@ -406,5 +274,209 @@ class GameRepository @Inject constructor(
     // Necesaria para la restauración de copias de seguridad (Backup).
     suspend fun insertGame(game: Game) {
         gameDao.insertGame(game)
+    }
+
+    private fun resolveAgeRating(ratings: List<AgeRatingDto>?, targetRegion: String): String? {
+        if (ratings.isNullOrEmpty()) {
+            android.util.Log.e("ORACLE_DEBUG", "❌ No hay ratings disponibles para este juego.")
+            return null
+        }
+
+        fun getInfo(dto: AgeRatingDto): Pair<Int, Int> {
+            val orgId = dto.organization ?: dto.category ?: -1
+            val ratingValue = dto.rating ?: dto.ratingCategory ?: -1
+            return Pair(orgId, ratingValue)
+        }
+
+        // --- INICIO DIAGNÓSTICO ---
+        android.util.Log.d("ORACLE_DEBUG", "🔍 Analizando para región: $targetRegion (TargetOrgId calculado internamente)")
+        ratings.forEach {
+            val (o, r) = getInfo(it)
+            android.util.Log.d("ORACLE_DEBUG", "   ➡️ Encontrado: Org=$o | Valor=$r | MapeoString=${mapRatingToString(it)}")
+        }
+        // --------------------------
+
+        val targetOrgId = when (targetRegion) {
+            "NTSC-U"  -> 1
+            "PAL EU"  -> 2
+            "PAL"     -> 2
+            "NTSC-J"  -> 3
+            "PAL DE"  -> 4
+            "NTSC-K"  -> 5
+            "NTSC-BR" -> 6
+            "PAL AU"  -> 7
+            else      -> 2
+        }
+
+        // 1. FRANCOTIRADOR
+        val targetRating = ratings.find {
+            val (orgId, _) = getInfo(it)
+            orgId == targetOrgId
+        }
+
+        if (targetRating != null) {
+            val (o, r) = getInfo(targetRating)
+            android.util.Log.d("ORACLE_DEBUG", "🎯 FRANCOTIRADOR ACERTÓ: Usando Org $o con valor $r")
+            return mapRatingToString(targetRating)
+        } else {
+            android.util.Log.d("ORACLE_DEBUG", "⚠️ Francotirador falló. Buscando Plan B...")
+        }
+
+        // 2. PLAN B (Australia -> Proxy)
+        if (targetOrgId == 7) {
+            val proxy = ratings.find {
+                val (orgId, _) = getInfo(it)
+                orgId == 2 || orgId == 1
+            }
+
+            if (proxy != null) {
+                val (proxyOrg, proxyVal) = getInfo(proxy)
+                android.util.Log.d("ORACLE_DEBUG", "🦘 PROXY AUSTRALIANO ACTIVADO: Usando Rating de Org $proxyOrg (Val $proxyVal) para simular ACB")
+
+                val fakeDto = AgeRatingDto(category = 7, rating = proxyVal)
+                val resultado = mapRatingToString(fakeDto)
+                android.util.Log.d("ORACLE_DEBUG", "   📝 Resultado Proxy: $resultado")
+                return resultado
+            } else {
+                android.util.Log.e("ORACLE_DEBUG", "❌ No se encontró ningún Proxy (ni ESRB ni PEGI).")
+            }
+        }
+
+        // Resto de la función...
+        if (targetOrgId == 4) {
+            ratings.find {
+                val (orgId, _) = getInfo(it)
+                orgId == 2
+            }?.let { return mapRatingToString(it) }
+        }
+
+        ratings.firstOrNull()?.let {
+            android.util.Log.d("ORACLE_DEBUG", "🏳️ RENDICIÓN: Usando el primero que pille.")
+            return mapRatingToString(it)
+        }
+
+        return null
+    }
+
+    private fun mapRatingToString(dto: AgeRatingDto): String {
+        // Recuperamos los datos con prioridad corregida
+        val orgId = dto.organization ?: dto.category ?: -1
+        // Usamos ratingCategory como fuente principal de la nota (API v4 standard)
+        val ratingValue = dto.rating ?: dto.ratingCategory ?: -1
+
+        if (ratingValue == -1) return "UNK ($orgId)"
+
+        return when (orgId) {
+            1 -> { // === ESRB (USA) ===
+                when (ratingValue) {
+                    6 -> "ESRB RP"
+                    7 -> "ESRB EC"
+                    8 -> "ESRB E"
+                    9 -> "ESRB E10+"
+                    10 -> "ESRB T"
+                    11 -> "ESRB M"
+                    12 -> "ESRB AO"
+                    // Cross-Mapping: Si llega código PEGI, lo traducimos a ESRB
+                    1 -> "ESRB E"    // PEGI 3 -> E
+                    2 -> "ESRB E10+" // PEGI 7 -> E10+
+                    3 -> "ESRB T"    // PEGI 12 -> T
+                    4 -> "ESRB M"    // PEGI 16 -> M
+                    5 -> "ESRB AO"   // PEGI 18 -> AO
+                    else -> "ESRB ($ratingValue)"
+                }
+            }
+            2 -> { // === PEGI (Europe) ===
+                when (ratingValue) {
+                    1 -> "PEGI 3"
+                    2 -> "PEGI 7"
+                    3 -> "PEGI 12"
+                    4 -> "PEGI 16"
+                    5 -> "PEGI 18"
+                    // Cross-Mapping: Si llega código ESRB, lo traducimos a PEGI
+                    // Esto arregla "Metroid Prime 4" (Llega 10/Teen -> Sale PEGI 12)
+                    // Esto arregla "Master Detective" (Llega 11/Mature -> Sale PEGI 18)
+                    8 -> "PEGI 3"    // ESRB E -> PEGI 3
+                    9 -> "PEGI 7"    // ESRB E10+ -> PEGI 7
+                    10 -> "PEGI 12"  // ESRB Teen -> PEGI 12
+                    11 -> "PEGI 18"  // ESRB Mature -> PEGI 18
+                    12 -> "PEGI 18"  // ESRB AO -> PEGI 18
+                    else -> "PEGI ($ratingValue)"
+                }
+            }
+            3 -> { // === CERO (Japan) ===
+                when (ratingValue) {
+                    13 -> "CERO A"
+                    14 -> "CERO B"
+                    15 -> "CERO C"
+                    16 -> "CERO D"
+                    17 -> "CERO Z"
+                    else -> "CERO ($ratingValue)"
+                }
+            }
+            4 -> { // === USK (Germany) ===
+                when (ratingValue) {
+                    18 -> "USK 0"
+                    19 -> "USK 6"
+                    20 -> "USK 12"
+                    21 -> "USK 16"
+                    22 -> "USK 18"
+                    else -> "USK ($ratingValue)"
+                }
+            }
+            5 -> { // === GRAC (Korea) ===
+                when (ratingValue) {
+                    23 -> "GRAC ALL"
+                    24 -> "GRAC 12"
+                    25 -> "GRAC 15"
+                    26 -> "GRAC 18"
+                    39 -> "GRAC Test"
+                    else -> "GRAC ($ratingValue)"
+                }
+            }
+            6 -> { // === ClassInd (Brazil) ===
+                when (ratingValue) {
+                    27 -> "ClassInd L"
+                    28 -> "ClassInd 10"
+                    29 -> "ClassInd 12"
+                    30 -> "ClassInd 14"
+                    31 -> "ClassInd 16"
+                    32 -> "ClassInd 18"
+                    else -> "ClassInd ($ratingValue)"
+                }
+            }
+            7 -> { // === ACB (Australia) ===
+                when (ratingValue) {
+                    33 -> "ACB G"
+                    34 -> "ACB PG"
+                    35 -> "ACB M"
+                    36 -> "ACB MA15+"
+                    37 -> "ACB R18+"
+                    38 -> "ACB RC"
+                    // 🦘 CROSS-MAPPING AUSTRALIANO (Traducción de emergencia)
+                    // Si el juego no tiene nota en Australia, traducimos la americana/europea.
+
+                    // G (General) - Para todos
+                    1 -> "ACB G"   // PEGI 3 -> G
+                    8 -> "ACB G"   // ESRB E -> G
+
+                    // PG (Parental Guidance) - Recomendado supervisión
+                    2 -> "ACB PG"  // PEGI 7 -> PG
+                    9 -> "ACB PG"  // ESRB E10+ -> PG (¡Aquí está tu Donkey Kong!)
+                    10 -> "ACB PG" // ESRB Teen -> PG (A veces es M, pero PG es más seguro por defecto)
+                    3 -> "ACB PG"  // PEGI 12 -> PG
+
+                    // M (Mature) - Recomendado 15+ (No restringido)
+                    4 -> "ACB M"   // PEGI 16 -> M
+                    11 -> "ACB M"  // ESRB Mature -> M
+
+                    // MA15+ / R18+ (Restringido)
+                    5 -> "ACB MA15+" // PEGI 18 -> MA15+
+                    12 -> "ACB R18+" // ESRB AO -> R18+
+
+                    else -> "ACB ($ratingValue)"
+                }
+            }
+            else -> "UNK ($orgId|$ratingValue)"
+        }
     }
 }
