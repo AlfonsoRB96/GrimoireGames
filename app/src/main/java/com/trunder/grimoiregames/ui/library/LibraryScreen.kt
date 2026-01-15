@@ -60,6 +60,7 @@ fun LibraryScreen(
     var isSearching by remember { mutableStateOf(false) }
     val showUpdateDialog by viewModel.showUpdateDialog.collectAsState()
     val updateProgress by viewModel.updateProgress.collectAsState()
+    val isRefreshing by viewModel.isRefreshing.collectAsState()
 
     // Filter Dialog internal states
     var selectedCategoryForFilter by remember { mutableStateOf<String?>(null) }
@@ -316,7 +317,7 @@ fun LibraryScreen(
         }
     ) { innerPadding ->
         PullToRefreshBox(
-            isRefreshing = false,
+            isRefreshing = isRefreshing,
             onRefresh = { viewModel.refreshLibrary() },
             state = pullRefreshState,
             modifier = Modifier.padding(innerPadding)

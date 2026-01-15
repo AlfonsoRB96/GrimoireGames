@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.trunder.grimoiregames.data.entity.Game
 import com.trunder.grimoiregames.data.repository.GameRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.text.Normalizer
@@ -108,7 +109,43 @@ class LibraryViewModel @Inject constructor(
     val showUpdateDialog = _showUpdateDialog.asStateFlow()
     private val _updateProgress = MutableStateFlow(0)
     val updateProgress = _updateProgress.asStateFlow()
-    fun refreshLibrary() { viewModelScope.launch { /* ... */ } }
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing = _isRefreshing.asStateFlow()
+
+    fun refreshLibrary() {
+        viewModelScope.launch {
+            // 1. Encendemos el indicador de carga (Activa el spinner del PullToRefresh)
+            _isRefreshing.value = true
+            _showUpdateDialog.value = true
+
+            // Opcional: Si quieres que TAMBIÉN salga el diálogo flotante, descomenta esto:
+            // _showUpdateDialog.value = true
+
+            try {
+                // 2. Llamamos a la artillería pesada del Repositorio
+                repository.updateAllGames()
+                    .collect { percentage ->
+                        // Aquí recibimos el progreso (0%, 10%... 100%)
+                        _updateProgress.value = percentage
+
+                        // Si usas logs, puedes ver el avance:
+                        // android.util.Log.d("GrimoireUpdate", "Progreso: $percentage%")
+                    }
+
+                // 3. ¡Misión Cumplida!
+                // Si llegamos aquí es que el Flow terminó exitosamente.
+
+            } catch (e: Exception) {
+                e.printStackTrace()
+                // Aquí podrías guardar un mensaje de error en un StateFlow para mostrar un Snackbar
+            } finally {
+                // 4. Apagamos las luces al salir (Siempre se ejecuta, haya error o no)
+                _isRefreshing.value = false
+                _showUpdateDialog.value = false // Ocultamos diálogo si lo usaste
+                _updateProgress.value = 0       // Reseteamos contador
+            }
+        }
+    }
 
 
     // 🧠 LÓGICA MAESTRA

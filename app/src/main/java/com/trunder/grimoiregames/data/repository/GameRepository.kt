@@ -274,49 +274,86 @@ class GameRepository @Inject constructor(
     }
 
     private fun mapRatingToString(dto: AgeRatingDto): String {
+        // Aseguramos que si son nulos, usamos -1 para ir al else
         val cat = dto.category ?: dto.organization ?: -1
         val rat = dto.rating ?: dto.ratingCategory ?: -1
 
         return when (cat) {
             1 -> { // ESRB
                 when (rat) {
-                    6 -> "ESRB RP"; 7 -> "ESRB EC"; 8 -> "ESRB E"; 9 -> "ESRB 10+"; 10 -> "ESRB T"; 11 -> "ESRB M"; 12 -> "ESRB AO"
+                    // AÑADIDO "ESRB" EXPLICITO A TODOS PARA QUE EL MAPPER NO FALLE
+                    6 -> "ESRB RP"
+                    7 -> "ESRB EC"
+                    8 -> "ESRB E"
+                    9 -> "ESRB E10+" // 👈 CORREGIDO: Antes era "ESRB 10+", ahora el Mapper lo reconocerá
+                    10 -> "ESRB T"
+                    11 -> "ESRB M"
+                    12 -> "ESRB AO"
                     else -> "ESRB ($rat)"
                 }
             }
             2 -> { // PEGI
                 when (rat) {
-                    1 -> "PEGI 3"; 2 -> "PEGI 7"; 3 -> "PEGI 12"; 4 -> "PEGI 16"; 5 -> "PEGI 18"
+                    1 -> "PEGI 3"
+                    2 -> "PEGI 7"
+                    3 -> "PEGI 12"
+                    4 -> "PEGI 16"
+                    5 -> "PEGI 18"
+                    // Parche de seguridad por si IGDB manda basura (el famoso caso 9)
+                    9 -> "ESRB E10+" // Si llega un 9 en categoría PEGI, asumimos que es ESRB colado
                     else -> "PEGI ($rat)"
                 }
             }
             3 -> { // CERO (Japón)
                 when (rat) {
-                    13 -> "CERO A"; 14 -> "CERO B"; 15 -> "CERO C"; 16 -> "CERO D"; 17 -> "CERO Z"
+                    13 -> "CERO A"
+                    14 -> "CERO B"
+                    15 -> "CERO C"
+                    16 -> "CERO D"
+                    17 -> "CERO Z"
                     else -> "CERO ($rat)"
                 }
             }
             4 -> { // USK (Alemania)
                 when (rat) {
-                    18 -> "USK 0"; 19 -> "USK 6"; 20 -> "USK 12"; 21 -> "USK 16"; 22 -> "USK 18"
+                    18 -> "USK 0"
+                    19 -> "USK 6"
+                    20 -> "USK 12"
+                    21 -> "USK 16"
+                    22 -> "USK 18"
                     else -> "USK ($rat)"
                 }
             }
             5 -> { // GRAC (Corea)
                 when (rat) {
-                    23 -> "GRAC All"; 24 -> "GRAC 12"; 25 -> "GRAC 15"; 26 -> "GRAC 18"; 39 -> "GRAC Test"
+                    23 -> "GRAC ALL"
+                    24 -> "GRAC 12"
+                    25 -> "GRAC 15"
+                    26 -> "GRAC 18"
+                    39 -> "GRAC Test"
                     else -> "GRAC ($rat)"
                 }
             }
             6 -> { // ClassInd (Brasil)
                 when (rat) {
-                    27 -> "L (All)"; 28 -> "10"; 29 -> "12"; 30 -> "14"; 31 -> "16"; 32 -> "18"
+                    // AÑADIDO PREFIJO "ClassInd" PARA QUE EL MAPPER LO DETECTE
+                    27 -> "ClassInd L" // Antes "L (All)" -> Mapper fallaba
+                    28 -> "ClassInd 10" // Antes "10" -> Mapper fallaba
+                    29 -> "ClassInd 12"
+                    30 -> "ClassInd 14"
+                    31 -> "ClassInd 16"
+                    32 -> "ClassInd 18"
                     else -> "ClassInd ($rat)"
                 }
             }
             7 -> { // ACB (Australia)
                 when (rat) {
-                    33 -> "ACB G"; 34 -> "ACB PG"; 35 -> "ACB M"; 36 -> "ACB MA15+"; 37 -> "ACB R18+"; 38 -> "ACB RC"
+                    33 -> "ACB G"
+                    34 -> "ACB PG"
+                    35 -> "ACB M"
+                    36 -> "ACB MA15+"
+                    37 -> "ACB R18+"
+                    38 -> "ACB RC"
                     else -> "ACB ($rat)"
                 }
             }

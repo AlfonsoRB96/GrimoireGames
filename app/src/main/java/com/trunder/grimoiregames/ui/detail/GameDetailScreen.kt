@@ -37,6 +37,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.trunder.grimoiregames.data.entity.Game
 import com.trunder.grimoiregames.R
+import com.trunder.grimoiregames.util.RatingMapper
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -340,33 +341,38 @@ fun InfoItem(label: String, value: String) {
 
 @Composable
 fun AgeRatingBadge(ratingString: String?) {
-    if (ratingString == null) return
+    // 1. Intentamos conseguir el icono
+    val iconRes = RatingMapper.getDrawableFromString(ratingString)
 
-    val color = when {
-        ratingString.contains("PEGI 3") || ratingString.contains("PEGI 7") ||
-                ratingString.contains("ESRB E") || ratingString.contains("CERO A") -> Color(0xFF4CAF50)
-
-        ratingString.contains("PEGI 12") || ratingString.contains("PEGI 16") ||
-                ratingString.contains("ESRB T") || ratingString.contains("CERO B") || ratingString.contains("CERO C") -> Color(0xFFFFC107)
-
-        ratingString.contains("PEGI 18") || ratingString.contains("ESRB M") ||
-                ratingString.contains("CERO D") || ratingString.contains("CERO Z") -> Color(0xFFF44336)
-
-        else -> Color.Gray
-    }
-
-    Surface(
-        color = color,
-        shape = RoundedCornerShape(4.dp),
-        modifier = Modifier.padding(start = 8.dp)
-    ) {
-        Text(
-            text = ratingString,
-            color = Color.White,
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+    if (iconRes != null) {
+        // CASO A: ¡Tenemos imagen! La mostramos gloriosa
+        Image(
+            painter = androidx.compose.ui.res.painterResource(id = iconRes),
+            contentDescription = ratingString,
+            contentScale = ContentScale.Fit, // Que se ajuste bien sin recortarse
+            modifier = Modifier
+                .height(40.dp) // Altura fija para que no descuadre la UI
+            // Opcional: Si quieres sombra suave
+            // .shadow(2.dp, RoundedCornerShape(4.dp))
         )
+    } else if (!ratingString.isNullOrBlank()) {
+        // CASO B: Fallback (No tenemos icono para este string raro)
+        // Mantenemos tu lógica antigua de texto por si acaso falla el mapeo
+        val color = Color.Gray // O tu lógica de colores anterior simplificada
+
+        Surface(
+            color = color,
+            shape = RoundedCornerShape(4.dp),
+            modifier = Modifier.padding(start = 8.dp)
+        ) {
+            Text(
+                text = ratingString,
+                color = Color.White,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+            )
+        }
     }
 }
 
