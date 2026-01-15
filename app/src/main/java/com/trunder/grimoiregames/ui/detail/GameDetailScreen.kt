@@ -37,6 +37,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.trunder.grimoiregames.data.entity.Game
 import com.trunder.grimoiregames.R
+import com.trunder.grimoiregames.ui.common.PlatformResolver
 import com.trunder.grimoiregames.util.RatingMapper
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -111,6 +112,24 @@ fun GameDetailScreen(
                             .shadow(elevation = 16.dp, shape = RectangleShape)
                             .clip(RectangleShape)
                     )
+
+                    // 1. Consultamos al Oráculo (Resolver) qué tema usar
+                    val theme = PlatformResolver.getDetailTheme(currentSafeGame.platform)
+
+                    // 2. Solo pintamos si tenemos un icono válido (Nintendo por ahora)
+                    if (theme.iconResId != null) {
+                        Image(
+                            painter = androidx.compose.ui.res.painterResource(id = theme.iconResId),
+                            contentDescription = theme.contentDescription,
+                            modifier = Modifier
+                                .align(Alignment.TopStart) // Mantenemos la posición (Esq. Sup. Izq.)
+                                .padding(start = 12.dp, top = 12.dp) // Un poco de aire desde el borde
+                                .size(85.dp)            // ⬆️ ¡TAMAÑO MASIVO! (Ajusta esto a 80.dp o 120.dp según gustos)
+                                .clip(RoundedCornerShape(16.dp)),
+                            contentScale = ContentScale.Fit, // Que el logo se ajuste bien sin recortarse
+                            colorFilter = null             // ⚠️ VITAL: Respetar los colores originales del SVG/XML
+                        )
+                    }
                 }
 
                 Column(modifier = Modifier.padding(16.dp)) {

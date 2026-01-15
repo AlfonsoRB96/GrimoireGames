@@ -1,97 +1,138 @@
 package com.trunder.grimoiregames.ui.common
 
-import android.content.Context
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import com.trunder.grimoiregames.R
 import java.util.Locale
 
 data class PlatformTheme(
-    val iconResId: Int?,       // Si tenemos un PNG/SVG en drawable
-    val fallbackVector: ImageVector, // Si no tenemos nada, usamos un icono material
-    val color: Color
+    val iconResId: Int?,
+    val color: Color,
+    val contentDescription: String,
+    val fallbackVector: ImageVector? = null // Añadido para soporte legacy en Library
 )
 
 object PlatformResolver {
 
-    fun getTheme(context: Context, platformName: String): PlatformTheme {
-        // 1. Limpiamos el nombre para que sea un nombre de archivo válido
-        // Ej: "Super Nintendo (SNES)" -> "snes"
-        // Ej: "PlayStation 5" -> "playstation_5"
-        val normalizedName = normalizePlatformName(platformName)
+    // =================================================================
+    // 🏛️ MODO BIBLIOTECA (LibraryScreen)
+    // =================================================================
+    // Devuelve iconos generalistas de MARCA (Nintendo, Sony, Xbox)
+    // o Vectores minimalistas si no hay logo de marca.
+    fun getLibraryTheme(platformName: String): PlatformTheme {
+        val lower = platformName.lowercase(Locale.ROOT)
 
-        // 2. Buscamos si existe un archivo "ic_p_[nombre]" en drawable
-        // El prefijo "ic_p_" es para tenerlos ordenados (icon_platform)
-        val resourceName = "ic_p_$normalizedName"
-        val resId = context.resources.getIdentifier(resourceName, "drawable", context.packageName)
+        // 1. Definimos el Vector de respaldo (El comportamiento clásico)
+        val vector = when {
+            lower.contains("pc") || lower.contains("windows") -> Icons.Default.Computer
+            lower.contains("boy") || lower.contains("ds") || lower.contains("switch") -> Icons.Default.Smartphone // O Tv para Switch
+            lower.contains("playstation") -> Icons.Default.VideogameAsset
+            lower.contains("xbox") -> Icons.Default.SportsEsports
+            lower.contains("wii") -> Icons.Default.SportsTennis
+            else -> Icons.Default.Gamepad
+        }
 
-        // 3. Resolvemos el color
-        val color = resolveColor(platformName, normalizedName)
-
-        return PlatformTheme(
-            iconResId = if (resId != 0) resId else null,
-            fallbackVector = resolveFallbackVector(platformName),
-            color = color
-        )
-    }
-
-    private fun normalizePlatformName(name: String): String {
-        return name.lowercase(Locale.ROOT)
-            .replace("entertainment system", "") // Quitar apellidos largos
-            .replace("(", "")
-            .replace(")", "")
-            .trim()
-            .replace(" ", "_")
-            .replace("-", "_")
-            // Truco: Si el nombre contiene "snes" aunque sea largo, forzamos "snes"
-            .let { if (it.contains("snes")) "snes" else it }
-            .let { if (it.contains("nes")) "nes" else it }
-            .let { if (it.contains("switch")) "switch" else it }
-            .let { if (it.contains("megadrive") || it.contains("genesis")) "megadrive" else it }
-    }
-
-    private fun resolveFallbackVector(name: String): ImageVector {
-        val n = name.lowercase()
+        // 2. Intentamos agrupar por MARCA (Si tienes el logo genérico ic_p_nintendo, úsalo)
+        // Si prefieres usar SIEMPRE vectores en la Library, pon iconResId = null en todos.
         return when {
-            n.contains("pc") || n.contains("windows") -> Icons.Default.Computer
-            n.contains("boy") || n.contains("ds") -> Icons.Default.Smartphone // Portátiles
-            n.contains("playstation") -> Icons.Default.VideogameAsset
-            n.contains("xbox") -> Icons.Default.SportsEsports
-            n.contains("wii") -> Icons.Default.SportsTennis
-            else -> Icons.Default.Gamepad // Genérico
+            // NINTENDO (Agrupado)
+            lower.contains("nintendo") || lower.contains("mario") || lower.contains("zelda") || lower.contains("switch") || lower.contains("wii") || lower.contains("ds") ->
+                PlatformTheme(
+                    iconResId = null, // <--- Úsalo si tienes el logo ROJO de Nintendo. Si no, pon null.
+                    color = Color(0xFFE60012),
+                    contentDescription = "Nintendo",
+                    fallbackVector = vector
+                )
+
+            // SONY
+            lower.contains("playstation") || lower.contains("ps") ->
+                PlatformTheme(
+                    iconResId = null,
+                    color = Color(0xFF003791),
+                    contentDescription = "PlayStation",
+                    fallbackVector = vector
+                )
+
+            // XBOX
+            lower.contains("xbox") ->
+                PlatformTheme(
+                    iconResId = null,
+                    color = Color(0xFF107C10),
+                    contentDescription = "Xbox",
+                    fallbackVector = vector
+                )
+
+            // RESTO (PC, SEGA...)
+            else -> PlatformTheme(null, Color.Gray, platformName, vector)
         }
     }
 
-    private fun resolveColor(originalName: String, normalized: String): Color {
-        // Colores manuales para los grandes
+    // =================================================================
+    // 🔍 MODO DETALLE (GameDetailScreen)
+    // =================================================================
+    // Devuelve iconos ESPECÍFICOS de consola (Switch, NES, SNES...)
+    fun getDetailTheme(platformName: String): PlatformTheme {
+        val lower = platformName.lowercase(Locale.ROOT)
+
         return when {
-            normalized.contains("switch") -> Color(0xFFE60012) // Rojo Nintendo
-            normalized.contains("gamecube") -> Color(0xFF6A5ACD) // Morado
-            normalized.contains("wii") -> Color(0xFF009AC7) // Azulito Wii
-            normalized.contains("playstation") -> Color(0xFF003791) // Azul Sony
-            normalized.contains("xbox") -> Color(0xFF107C10) // Verde Xbox
-            normalized.contains("pc") || normalized.contains("windows") -> Color(0xFF333333)
-            normalized.contains("snes") -> Color(0xFF514689) // Gris/Morado SNES USA
-            normalized.contains("nes") -> Color(0xFF8B0000) // Rojo oscuro
-            normalized.contains("megadrive") || normalized.contains("genesis") -> Color(0xFF000000)
+            // === 1. SWITCH FAMILY (El hijo antes que el padre) ===
+            lower.contains("switch 2") || lower.contains("switch2") ->
+                PlatformTheme(R.drawable.ic_logo_nintendo_switch2, Color(0xFFE60012), "Nintendo Switch 2")
 
-            // GENERADOR DE COLOR AUTOMÁTICO PARA EL RESTO
-            // Si metes "Atari Jaguar", generará un color único basado en su nombre
-            // para que no salga siempre negro.
-            else -> generateColorFromString(originalName)
-        }
-    }
+            lower.contains("switch") ->
+                PlatformTheme(R.drawable.ic_logo_nintendo_switch, Color(0xFFE60012), "Nintendo Switch")
 
-    private fun generateColorFromString(text: String): Color {
-        val hash = text.hashCode()
-        // Generamos un color pastel oscuro para que las letras blancas se lean bien
-        val r = (hash and 0xFF0000 shr 16)
-        val g = (hash and 0x00FF00 shr 8)
-        val b = (hash and 0x0000FF)
-        return Color(r, g, b).copy(alpha = 1f).let {
-            // Aseguramos que no sea demasiado claro (truco rápido)
-            if (it.red > 0.8f && it.green > 0.8f) Color.DarkGray else it
+            // === 2. WII FAMILY ===
+            lower.contains("wii u") ->
+                PlatformTheme(R.drawable.ic_logo_nintendo_wiiu, Color(0xFF009AC7), "Wii U")
+
+            lower.contains("wii") ->
+                PlatformTheme(R.drawable.ic_logo_nintendo_wii, Color(0xFF009AC7), "Wii")
+
+            // === 3. GAMECUBE ===
+            lower.contains("gamecube") || lower.contains("ngc") ->
+                PlatformTheme(R.drawable.ic_logo_nintendo_gamecube, Color(0xFF6A5ACD), "GameCube")
+
+            // === 4. NINTENDO 64 (Fix: Detectar nombre completo) ===
+            // Antes fallaba porque "Nintendo 64" no contiene "n64"
+            lower.contains("n64") || lower.contains("nintendo 64") || lower.contains("64") ->
+                PlatformTheme(R.drawable.ic_logo_nintendo_64, Color(0xFFFEBA34), "Nintendo 64")
+
+            // === 5. SNES (Fix: Detectar "Super Nintendo") ===
+            // Antes fallaba porque "Super Nintendo..." no contiene "snes"
+            lower.contains("snes") || lower.contains("super nintendo") ->
+                PlatformTheme(R.drawable.ic_logo_nintendo_snes, Color(0xFF514689), "Super Nintendo")
+
+            // === 6. NES (Fix: Detectar "Entertainment System") ===
+            // Cuidado: "Nintendo Entertainment System" contiene "Nintendo",
+            // así que si tuvieras una regla general de "Nintendo" antes, fallaría.
+            lower.contains("nes") || lower.contains("nintendo entertainment system") || lower.contains("famicom") ->
+                PlatformTheme(R.drawable.ic_logo_nintendo_nes, Color(0xFF8B0000), "NES")
+
+            // === 7. PORTÁTILES (Orden: 3DS > DS > GBA > GBC > GB) ===
+            lower.contains("3ds") ->
+                PlatformTheme(R.drawable.ic_logo_nintendo_3ds, Color(0xFFCE181E), "Nintendo 3DS")
+
+            lower.contains("ds") -> // Captura "Nintendo DS", "DSi", "DS Lite"
+                PlatformTheme(R.drawable.ic_logo_nintendo_ds, Color(0xFF5DADE2), "Nintendo DS")
+
+            lower.contains("advance") || lower.contains("gba") ->
+                PlatformTheme(R.drawable.ic_logo_nintendo_gba, Color(0xFF3F007D), "Game Boy Advance")
+
+            // 🚨 GAME BOY COLOR (Fix: Antes que Game Boy normal)
+            // Si tienes un icono específico para GBC, úsalo aquí.
+            // Si no, usa el de GBA o GB pero con el texto correcto.
+            lower.contains("color") || lower.contains("gbc") ->
+                PlatformTheme(R.drawable.ic_logo_nintendo_gbc, Color(0xFF009AC7), "Game Boy Color") // ⚠️ Asegúrate de tener ic_p_gbc o usa otro
+
+            // GAME BOY CLÁSICA (El cajón de sastre de las "Boy")
+            lower.contains("boy") ->
+                PlatformTheme(R.drawable.ic_logo_nintendo_gb, Color(0xFF8BAC0F), "Game Boy")
+
+            // === RESTO ===
+            else -> getLibraryTheme(platformName)
         }
     }
 }

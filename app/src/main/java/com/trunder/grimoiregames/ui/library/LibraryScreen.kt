@@ -371,7 +371,7 @@ fun GameCard(game: Game, onClick: () -> Unit, onLongClick: () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
 
     val theme = remember(game.platform) {
-        PlatformResolver.getTheme(context, game.platform)
+        PlatformResolver.getLibraryTheme(game.platform)
     }
 
     fun getRegionFlag(region: String): String {
@@ -416,6 +416,7 @@ fun GameCard(game: Game, onClick: () -> Unit, onLongClick: () -> Unit) {
                         shape = CircleShape,
                         modifier = Modifier.size(24.dp)
                     ) {
+                        // CASO 1: Tenemos imagen PNG/XML específica (Prioridad)
                         if (theme.iconResId != null) {
                             Icon(
                                 painter = androidx.compose.ui.res.painterResource(id = theme.iconResId),
@@ -423,9 +424,21 @@ fun GameCard(game: Game, onClick: () -> Unit, onLongClick: () -> Unit) {
                                 tint = Color.Unspecified,
                                 modifier = Modifier.padding(4.dp)
                             )
-                        } else {
+                        }
+                        // CASO 2: Tenemos vector de respaldo (Fallback)
+                        // 🔴 CORRECCIÓN: Comprobamos que no sea null con un 'else if'
+                        else if (theme.fallbackVector != null) {
                             Icon(
-                                imageVector = theme.fallbackVector,
+                                imageVector = theme.fallbackVector, // Ahora Kotlin sabe que no es null
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.padding(5.dp)
+                            )
+                        }
+                        // CASO 3 (Seguridad): Si todo falla, pintamos un gamepad genérico
+                        else {
+                            Icon(
+                                imageVector = Icons.Default.Gamepad,
                                 contentDescription = null,
                                 tint = Color.White,
                                 modifier = Modifier.padding(5.dp)
