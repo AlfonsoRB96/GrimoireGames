@@ -8,14 +8,15 @@ import retrofit2.http.Header
 import retrofit2.http.POST
 
 interface IgdbApi {
+    // Para buscar juegos
     @POST("games")
     suspend fun getGames(
         @Header("Client-ID") clientId: String,
-        @Header("Authorization") authorization: String, // "Bearer <token>"
-        @Body query: RequestBody // Aquí mandaremos el texto "fields name, cover..."
+        @Header("Authorization") authorization: String,
+        @Body query: RequestBody
     ): List<IgdbGameDto>
 
-    // Nuevo endpoint para buscar detalles de ratings sueltos
+    // Para obtener los detalles de la edad (El "Francotirador")
     @POST("age_ratings")
     suspend fun getAgeRatingDetails(
         @Header("Client-ID") clientId: String,

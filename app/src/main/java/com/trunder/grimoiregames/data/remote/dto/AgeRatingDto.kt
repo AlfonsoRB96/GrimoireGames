@@ -5,15 +5,25 @@ import com.google.gson.annotations.SerializedName
 data class AgeRatingDto(
     @SerializedName("id") val id: Long? = null,
 
-    // --- ORGANIZACIÓN (Sistema: PEGI, ESRB...) ---
-    // 'organization': El nuevo estándar de IGDB (ID 8).
-    // 'category': El antiguo estándar (ID 2).
-    // 'rating_category': A veces usado para el sistema (ID 9).
-    @SerializedName("organization") val organization: Int? = null,
-    @SerializedName("category") val category: Int? = null,
-    @SerializedName("rating_category") val ratingCategory: Int? = null,
+    // Puede venir null, pero no pasa nada
+    @SerializedName("organization") val organizationId: Int? = null,
 
-    // --- NOTA (Valor: 3, 7, E, T...) ---
-    // 'rating': El valor numérico de la nota (ID 4).
-    @SerializedName("rating") val rating: Int? = null
-)
+    // La nota en sí (PEGI 18, ESRB T...)
+    @SerializedName("rating_category") val ratingId: Int? = null
+) {
+    // Convertimos IDs a Enums
+    val rating: AgeRatingCategory?
+        get() = AgeRatingCategory.fromId(ratingId)
+
+    // LÓGICA MEJORADA:
+    // 1. Si la API nos dice la organización, genial.
+    // 2. Si no (null), la deducimos de la nota (ej: si es "PEGI 3", la org es PEGI).
+    val organization: AgeRatingOrganization?
+        get() {
+            // Prioridad 1: Deducir del rating (es más fiable porque es único)
+            rating?.let { return it.org }
+
+            // Prioridad 2: Usar el campo organization explicito
+            return AgeRatingOrganization.fromId(organizationId)
+        }
+}

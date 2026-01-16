@@ -1,93 +1,120 @@
 package com.trunder.grimoiregames.util
 
 import com.trunder.grimoiregames.R
+import com.trunder.grimoiregames.data.remote.dto.AgeRatingCategory
+import com.trunder.grimoiregames.data.remote.dto.AgeRatingCategory.*
 
 object RatingMapper {
 
-    fun getDrawableFromString(ratingString: String?): Int? {
-        if (ratingString == null) return null
-        val upper = ratingString.uppercase()
+    // 1. PARA LA API (Uso interno o futuro)
+    fun getDrawableFromCategory(category: AgeRatingCategory?): Int? {
+        if (category == null) return null
+        // Reutilizamos la lógica inversa para no repetir código
+        // Convertimos el Enum a su String representativo y pedimos el Drawable
+        val tag = getTagFromEnum(category)
+        return getDrawableFromString(tag)
+    }
 
-        return when {
-            // ==========================================
-            // 🇪🇺 PEGI (Europa)
-            // ==========================================
-            upper.contains("PEGI") && upper.contains("3") -> R.drawable.rating_pegi_3
-            upper.contains("PEGI") && upper.contains("7") -> R.drawable.rating_pegi_7
-            upper.contains("PEGI") && upper.contains("12") -> R.drawable.rating_pegi_12
-            upper.contains("PEGI") && upper.contains("16") -> R.drawable.rating_pegi_16
-            upper.contains("PEGI") && upper.contains("18") -> R.drawable.rating_pegi_18
+    // 2. PARA LA UI (GameDetailScreen): Lee los Strings de Room ("PEGI 18", "ESRB T"...)
+    fun getDrawableFromString(ratingTag: String?): Int? {
+        if (ratingTag.isNullOrEmpty()) return null
 
-            // ==========================================
-            // 🇺🇸 ESRB (Norteamérica) - 🔧 CORREGIDO ORDEN
-            // ==========================================
+        return when (ratingTag) {
+            // === PEGI ===
+            "PEGI 3" -> R.drawable.rating_pegi_3
+            "PEGI 7" -> R.drawable.rating_pegi_7
+            "PEGI 12" -> R.drawable.rating_pegi_12
+            "PEGI 16" -> R.drawable.rating_pegi_16
+            "PEGI 18" -> R.drawable.rating_pegi_18
 
-            // 1. E10+ (Prioridad máxima por contener "10")
-            (upper.contains("ESRB") || upper.contains("EVERYONE")) && upper.contains("10") -> R.drawable.rating_esrb_e10
+            // === ESRB ===
+            "ESRB RP" -> R.drawable.rating_esrb_rp
+            "ESRB E" -> R.drawable.rating_esrb_e
+            "ESRB E10+" -> R.drawable.rating_esrb_e10
+            "ESRB T" -> R.drawable.rating_esrb_t
+            "ESRB M" -> R.drawable.rating_esrb_m
+            "ESRB AO" -> R.drawable.rating_esrb_ao
 
-            // 2. RP - Pending (¡Aquí estaba el bug! Ahora lo comprobamos antes)
-            upper.contains("RP") || upper.contains("PENDING") -> R.drawable.rating_esrb_rp
+            // === CERO ===
+            "CERO A" -> R.drawable.rating_cero_a
+            "CERO B" -> R.drawable.rating_cero_b
+            "CERO C" -> R.drawable.rating_cero_c
+            "CERO D" -> R.drawable.rating_cero_d
+            "CERO Z" -> R.drawable.rating_cero_z
 
-            // 3. AO - Adults Only
-            upper.contains("AO") || (upper.contains("ADULTS") && upper.contains("ONLY")) -> R.drawable.rating_esrb_ao
+            // === USK ===
+            "USK 0" -> R.drawable.rating_usk_0
+            "USK 6" -> R.drawable.rating_usk_6
+            "USK 12" -> R.drawable.rating_usk_12
+            "USK 16" -> R.drawable.rating_usk_16
+            "USK 18" -> R.drawable.rating_usk_18
 
-            // 4. M - Mature
-            upper.contains("MATURE") || (upper.contains("ESRB") && upper.contains("M")) -> R.drawable.rating_esrb_m
+            // === GRAC ===
+            "GRAC ALL" -> R.drawable.rating_grac_all
+            "GRAC 12" -> R.drawable.rating_grac_12
+            "GRAC 15" -> R.drawable.rating_grac_15
+            "GRAC 18" -> R.drawable.rating_grac_18
 
-            // 5. T - Teen
-            upper.contains("TEEN") || (upper.contains("ESRB") && upper.contains("T")) -> R.drawable.rating_esrb_t
+            // === CLASS_IND ===
+            "ClassInd L" -> R.drawable.rating_classind_l
+            "ClassInd 10" -> R.drawable.rating_classind_10
+            "ClassInd 12" -> R.drawable.rating_classind_12
+            "ClassInd 14" -> R.drawable.rating_classind_14
+            "ClassInd 16" -> R.drawable.rating_classind_16
+            "ClassInd 18" -> R.drawable.rating_classind_18
 
-            // 6. E - Everyone (El "cajón desastre" va al final)
-            // Esto captura "ESRB E", "ESRB EC" (Early Childhood) y "ESRB Everyone"
-            upper.contains("ESRB") || upper.contains("EVERYONE") -> R.drawable.rating_esrb_e
-
-            // ==========================================
-            // 🇰🇷 GRAC (Corea)
-            // ==========================================
-            upper.contains("GRAC") && (upper.contains("ALL") || upper.contains("E")) -> R.drawable.rating_grac_all
-            upper.contains("GRAC") && upper.contains("12") -> R.drawable.rating_grac_12
-            upper.contains("GRAC") && upper.contains("15") -> R.drawable.rating_grac_15
-            upper.contains("GRAC") && upper.contains("18") -> R.drawable.rating_grac_18
-
-            // ==========================================
-            // 🇯🇵 CERO (Japón)
-            // ==========================================
-            upper.contains("CERO") && upper.contains("A") -> R.drawable.rating_cero_a
-            upper.contains("CERO") && upper.contains("B") -> R.drawable.rating_cero_b
-            upper.contains("CERO") && upper.contains("C") -> R.drawable.rating_cero_c
-            upper.contains("CERO") && upper.contains("D") -> R.drawable.rating_cero_d
-            upper.contains("CERO") && upper.contains("Z") -> R.drawable.rating_cero_z
-
-            // ==========================================
-            // 🇩🇪 USK (Alemania)
-            // ==========================================
-            upper.contains("USK") && (upper.contains("0") || upper.contains("AB 0")) -> R.drawable.rating_usk_0
-            upper.contains("USK") && (upper.contains("6") || upper.contains("AB 6")) -> R.drawable.rating_usk_6
-            upper.contains("USK") && (upper.contains("12") || upper.contains("AB 12")) -> R.drawable.rating_usk_12
-            upper.contains("USK") && (upper.contains("16") || upper.contains("AB 16")) -> R.drawable.rating_usk_16
-            upper.contains("USK") && (upper.contains("18") || upper.contains("AB 18")) -> R.drawable.rating_usk_18
-
-            // ==========================================
-            // 🇧🇷 ClassInd (Brasil)
-            // ==========================================
-            upper.contains("CLASSIND") && (upper.contains("L") || upper.contains("LIVRE")) -> R.drawable.rating_classind_l
-            upper.contains("CLASSIND") && upper.contains("10") -> R.drawable.rating_classind_10
-            upper.contains("CLASSIND") && upper.contains("12") -> R.drawable.rating_classind_12
-            upper.contains("CLASSIND") && upper.contains("14") -> R.drawable.rating_classind_14
-            upper.contains("CLASSIND") && upper.contains("16") -> R.drawable.rating_classind_16
-            upper.contains("CLASSIND") && upper.contains("18") -> R.drawable.rating_classind_18
-
-            // ==========================================
-            // 🇦🇺 ACB (Australia)
-            // ==========================================
-            upper.contains("ACB") && upper.contains("PG") -> R.drawable.rating_acb_pg
-            upper.contains("ACB") && (upper.contains("MA15") || upper.contains("15")) -> R.drawable.rating_acb_m15
-            upper.contains("ACB") && upper.contains("M") -> R.drawable.rating_acb_m
-            upper.contains("ACB") && upper.contains("G") -> R.drawable.rating_acb_g
-            upper.contains("ACB") && (upper.contains("R18") || upper.contains("18+")) -> R.drawable.rating_acb_r18
-            upper.contains("ACB") && upper.contains("RC") -> R.drawable.rating_acb_rc
+            // === ACB ===
+            "ACB G" -> R.drawable.rating_acb_g
+            "ACB PG" -> R.drawable.rating_acb_pg
+            "ACB M" -> R.drawable.rating_acb_m
+            "ACB MA15+" -> R.drawable.rating_acb_m15
+            "ACB R18+" -> R.drawable.rating_acb_r18
+            "ACB RC" -> R.drawable.rating_acb_rc
 
             else -> null
+        }
+    }
+
+    // Helper interno para conectar ambos mundos si fuera necesario
+    private fun getTagFromEnum(cat: AgeRatingCategory): String {
+        return when (cat) {
+            PEGI_3 -> "PEGI 3"
+            PEGI_7 -> "PEGI 7"
+            PEGI_12 -> "PEGI 12"
+            PEGI_16 -> "PEGI 16"
+            PEGI_18 -> "PEGI 18"
+            ESRB_RP, ESRB_EC -> "ESRB RP"
+            ESRB_E -> "ESRB E"
+            ESRB_E10 -> "ESRB E10+"
+            ESRB_T -> "ESRB T"
+            ESRB_M -> "ESRB M"
+            ESRB_AO -> "ESRB AO"
+            CERO_A -> "CERO A"
+            CERO_B -> "CERO B"
+            CERO_C -> "CERO C"
+            CERO_D -> "CERO D"
+            CERO_Z -> "CERO Z"
+            GRAC_ALL, GRAC_TESTING -> "GRAC ALL"
+            GRAC_12 -> "GRAC 12"
+            GRAC_15 -> "GRAC 15"
+            GRAC_18 -> "GRAC 18"
+            USK_0 -> "USK 0"
+            USK_6 -> "USK 6"
+            USK_12 -> "USK 12"
+            USK_16 -> "USK 16"
+            USK_18 -> "USK 18"
+            CLASS_IND_L -> "ClassInd L"
+            CLASS_IND_10 -> "ClassInd 10"
+            CLASS_IND_12 -> "ClassInd 12"
+            CLASS_IND_14 -> "ClassInd 14"
+            CLASS_IND_16 -> "ClassInd 16"
+            CLASS_IND_18 -> "ClassInd 18"
+            ACB_G -> "ACB G"
+            ACB_PG -> "ACB PG"
+            ACB_M -> "ACB M"
+            ACB_MA15 -> "ACB MA15+"
+            ACB_R18 -> "ACB R18+"
+            ACB_RC -> "ACB RC"
         }
     }
 }
