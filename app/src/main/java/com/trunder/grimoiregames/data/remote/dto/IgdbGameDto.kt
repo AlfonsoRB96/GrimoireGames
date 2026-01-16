@@ -7,26 +7,28 @@ data class IgdbGameDto(
     val id: Int,
     val name: String,
     val summary: String?, // Descripción
-
     @SerializedName("first_release_date")
     val firstReleaseDate: Long?, // ¡OJO! Viene en formato UNIX Timestamp (segundos)
-
     @SerializedName("aggregated_rating")
     val aggregatedRating: Double?, // Prensa
-
     @SerializedName("rating")
     val rating: Double?, // Usuarios (0-100)
-
     val cover: IgdbImageDto?, // Carátula
-
     val genres: List<IgdbItemDto>?,
     val platforms: List<IgdbItemDto>?,
-
     @SerializedName("involved_companies")
     val involvedCompanies: List<IgdbCompanyWrapperDto>?, // Desarrolladores/Publishers
-
     @SerializedName("age_ratings")
-    val ageRatings: List<Long>? // PEGI y ESRB
+    val ageRatings: List<Long>?, // PEGI y ESRB
+
+    // 👇 NUEVOS CAMPOS AGREGADOS POR ORACLE 👇
+    val gameType: Int = 0, // 0 = Main, 1 = DLC, etc.
+    // Aquí recibiremos los DLCs cuando pidamos el detalle
+    // Nota: IGDB a veces los llama "dlcs" o "expansions". Usaremos "dlcs" por ahora.
+    val dlcs: List<IgdbGameDto>?,
+    // Opcional: Si quieres detectar si es un bundle y qué juegos trae
+    @SerializedName("collection")
+    val collection: IgdbItemDto?
 )
 
 data class IgdbImageDto(

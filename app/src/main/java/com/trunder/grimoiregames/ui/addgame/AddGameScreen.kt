@@ -15,7 +15,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.trunder.grimoiregames.data.remote.dto.IgdbGameDto
@@ -89,32 +91,59 @@ fun AddGameScreen(
                 }
             }
 
-            // 3. LISTA DE RESULTADOS
-            if (viewModel.isSearching) {
-                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
+            // 3. ZONA DE RESULTADOS (¡AQUÍ ESTÁ LA CLAVE! 🗝️)
+            // Usamos un Box que ocupa todo el espacio restante.
+            // Esto permite usar Alignment.Center dentro.
+            Box(modifier = Modifier.fillMaxSize()) {
+
+                // A) Loading
+                if (viewModel.isSearching) {
+                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                 }
-            } else {
-                LazyColumn {
-                    items(viewModel.searchResults) { gameDto ->
-
-                        val releaseYear = remember(gameDto.firstReleaseDate) {
-                            gameDto.firstReleaseDate?.let { timestamp ->
-                                val date = Date(timestamp * 1000)
-                                SimpleDateFormat("yyyy", Locale.getDefault()).format(date)
-                            } ?: "TBA"
-                        }
-
-                        ListItem(
-                            headlineContent = { Text(gameDto.name) },
-                            supportingContent = {
-                                Text("Lanzamiento: $releaseYear")
-                            },
-                            modifier = Modifier.clickable {
-                                selectedGameForPlatformSelection = gameDto
+                // B) Lista de resultados
+                else {
+                    LazyColumn(modifier = Modifier.fillMaxSize()) {
+                        items(viewModel.searchResults) { gameDto ->
+                            val releaseYear = remember(gameDto.firstReleaseDate) {
+                                gameDto.firstReleaseDate?.let { timestamp ->
+                                    val date = Date(timestamp * 1000)
+                                    SimpleDateFormat("yyyy", Locale.getDefault()).format(date)
+                                } ?: "TBA"
                             }
-                        )
-                        HorizontalDivider()
+
+                            ListItem(
+                                headlineContent = { Text(gameDto.name) },
+                                supportingContent = { Text("Lanzamiento: $releaseYear") },
+                                modifier = Modifier.clickable { selectedGameForPlatformSelection = gameDto }
+                            )
+                            HorizontalDivider()
+                        }
+                    }
+
+                    // C) 👻 ESTADO VACÍO (MENSAJE FANTASMA)
+                    // Como estamos dentro del Box, Alignment.Center funciona perfecto.
+                    if (viewModel.searchResults.isEmpty() && viewModel.query.isNotEmpty()) {
+                        Column(
+                            modifier = Modifier.align(Alignment.Center), // ✅ AQUÍ SÍ FUNCIONA
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "👻",
+                                style = MaterialTheme.typography.displayMedium
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "No se encontraron juegos.",
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = "Prueba con otro nombre.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             }
