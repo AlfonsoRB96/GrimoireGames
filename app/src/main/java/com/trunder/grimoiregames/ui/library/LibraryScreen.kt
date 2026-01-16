@@ -36,6 +36,7 @@ import kotlin.collections.get
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
+import androidx.compose.ui.draw.shadow
 import com.trunder.grimoiregames.ui.common.PlatformResolver
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -412,9 +413,11 @@ fun GameCard(game: Game, onClick: () -> Unit, onLongClick: () -> Unit) {
                     verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
                     Surface(
-                        color = theme.color.copy(alpha = 0.9f),
+                        color = theme.color,
                         shape = CircleShape,
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier
+                            .size(24.dp)
+                            .shadow(elevation = 4.dp, shape = CircleShape)
                     ) {
                         // CASO 1: Tenemos imagen PNG/XML específica (Prioridad)
                         if (theme.iconResId != null) {
