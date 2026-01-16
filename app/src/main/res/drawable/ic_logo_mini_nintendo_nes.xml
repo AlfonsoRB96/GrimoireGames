@@ -1,16 +1,13 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="139.14dp"
-    android:height="139.14dp"
-    android:viewportWidth="139.14"
-    android:viewportHeight="139.14">
-
-    <path
-        android:pathData="M0,0 h139.14 v139.14 h-139.14 z"
-        android:fillColor="#FFFFFF"/>
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="29"
+    android:viewportHeight="29">
 
     <group
-        android:translateX="45"
-        android:translateY="34">
+        android:name="logo_nes_perfecto"
+        android:translateX="-11.07"
+        android:translateY="-21.3">
 
         <group
             android:translateX="0.6"

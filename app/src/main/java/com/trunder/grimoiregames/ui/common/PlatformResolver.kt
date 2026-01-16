@@ -38,9 +38,54 @@ object PlatformResolver {
         // Si prefieres usar SIEMPRE vectores en la Library, pon iconResId = null en todos.
         return when {
             // NINTENDO (Agrupado)
+            lower.contains("super") ->
+                PlatformTheme(
+                    iconResId = R.drawable.ic_logo_mini_nintendo_snes, // <--- Úsalo si tienes el logo ROJO de Nintendo. Si no, pon null.
+                    color = Color(0xFFFFFFFF),
+                    contentDescription = "Nintendo",
+                    fallbackVector = vector
+                )
+
+            // NINTENDO (Agrupado)
+            lower.contains("entertainment") ->
+                PlatformTheme(
+                    iconResId = R.drawable.ic_logo_mini_nintendo_nes, // <--- Úsalo si tienes el logo ROJO de Nintendo. Si no, pon null.
+                    color = Color(0xFFFFFFFF),
+                    contentDescription = "Nintendo",
+                    fallbackVector = vector
+                )
+
+            // NINTENDO (Agrupado)
+            lower.contains("64") ->
+                PlatformTheme(
+                    iconResId = R.drawable.ic_logo_mini_nintendo_64, // <--- Úsalo si tienes el logo ROJO de Nintendo. Si no, pon null.
+                    color = Color(0xFFFFFFFF),
+                    contentDescription = "Nintendo",
+                    fallbackVector = vector
+                )
+
+            // NINTENDO (Agrupado)
+            lower.contains("gamecube") ->
+                PlatformTheme(
+                    iconResId = R.drawable.ic_logo_mini_nintendo_gamecube, // <--- Úsalo si tienes el logo ROJO de Nintendo. Si no, pon null.
+                    color = Color(0xFF000000),
+                    contentDescription = "Nintendo",
+                    fallbackVector = vector
+                )
+
+            // NINTENDO (Agrupado)
             lower.contains("wii u") ->
                 PlatformTheme(
                     iconResId = R.drawable.ic_logo_mini_nintendo_wiiu, // <--- Úsalo si tienes el logo ROJO de Nintendo. Si no, pon null.
+                    color = Color(0xFFFFFFFF),
+                    contentDescription = "Nintendo",
+                    fallbackVector = vector
+                )
+
+            // NINTENDO (Agrupado)
+            lower.contains("wii") ->
+                PlatformTheme(
+                    iconResId = R.drawable.ic_logo_mini_nintendo_wii, // <--- Úsalo si tienes el logo ROJO de Nintendo. Si no, pon null.
                     color = Color(0xFFFFFFFF),
                     contentDescription = "Nintendo",
                     fallbackVector = vector
@@ -56,10 +101,55 @@ object PlatformResolver {
                 )
 
             // NINTENDO (Agrupado)
-            lower.contains("nintendo") || lower.contains("mario") || lower.contains("zelda") || lower.contains("switch") || lower.contains("wii") || lower.contains("ds") ->
+            lower.contains("switch") ->
                 PlatformTheme(
                     iconResId = R.drawable.ic_logo_mini_nintendo_switch, // <--- Úsalo si tienes el logo ROJO de Nintendo. Si no, pon null.
                     color = Color(0xFFE60012),
+                    contentDescription = "Nintendo",
+                    fallbackVector = vector
+                )
+
+            // NINTENDO (Agrupado)
+            lower.contains("color") ->
+                PlatformTheme(
+                    iconResId = R.drawable.ic_logo_mini_nintendo_gbc, // <--- Úsalo si tienes el logo ROJO de Nintendo. Si no, pon null.
+                    color = Color(0xFFFFFFFF),
+                    contentDescription = "Nintendo",
+                    fallbackVector = vector
+                )
+
+            // NINTENDO (Agrupado)
+            lower.contains("advance") ->
+                PlatformTheme(
+                    iconResId = R.drawable.ic_logo_mini_nintendo_gba, // <--- Úsalo si tienes el logo ROJO de Nintendo. Si no, pon null.
+                    color = Color(0xFFFFFFFF),
+                    contentDescription = "Nintendo",
+                    fallbackVector = vector
+                )
+
+            // NINTENDO (Agrupado)
+            lower.contains("game boy") ->
+                PlatformTheme(
+                    iconResId = R.drawable.ic_logo_mini_nintendo_gb, // <--- Úsalo si tienes el logo ROJO de Nintendo. Si no, pon null.
+                    color = Color(0xFFFFFFFF),
+                    contentDescription = "Nintendo",
+                    fallbackVector = vector
+                )
+
+            // NINTENDO (Agrupado)
+            lower.contains("3ds") ->
+                PlatformTheme(
+                    iconResId = R.drawable.ic_logo_mini_nintendo_3ds, // <--- Úsalo si tienes el logo ROJO de Nintendo. Si no, pon null.
+                    color = Color(0xFFFFFFFF),
+                    contentDescription = "Nintendo",
+                    fallbackVector = vector
+                )
+
+            // NINTENDO (Agrupado)
+            lower.contains("ds") ->
+                PlatformTheme(
+                    iconResId = R.drawable.ic_logo_mini_nintendo_ds, // <--- Úsalo si tienes el logo ROJO de Nintendo. Si no, pon null.
+                    color = Color(0xFFFFFFFF),
                     contentDescription = "Nintendo",
                     fallbackVector = vector
                 )
