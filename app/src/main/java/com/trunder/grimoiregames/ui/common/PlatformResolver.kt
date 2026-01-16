@@ -38,9 +38,27 @@ object PlatformResolver {
         // Si prefieres usar SIEMPRE vectores en la Library, pon iconResId = null en todos.
         return when {
             // NINTENDO (Agrupado)
+            lower.contains("wii u") ->
+                PlatformTheme(
+                    iconResId = R.drawable.ic_logo_mini_nintendo_wiiu, // <--- Úsalo si tienes el logo ROJO de Nintendo. Si no, pon null.
+                    color = Color(0xFFFFFFFF),
+                    contentDescription = "Nintendo",
+                    fallbackVector = vector
+                )
+
+            // NINTENDO (Agrupado)
+            lower.contains("switch 2") ->
+                PlatformTheme(
+                    iconResId = R.drawable.ic_logo_mini_nintendo_switch2, // <--- Úsalo si tienes el logo ROJO de Nintendo. Si no, pon null.
+                    color = Color(0xFFE60012),
+                    contentDescription = "Nintendo",
+                    fallbackVector = vector
+                )
+
+            // NINTENDO (Agrupado)
             lower.contains("nintendo") || lower.contains("mario") || lower.contains("zelda") || lower.contains("switch") || lower.contains("wii") || lower.contains("ds") ->
                 PlatformTheme(
-                    iconResId = null, // <--- Úsalo si tienes el logo ROJO de Nintendo. Si no, pon null.
+                    iconResId = R.drawable.ic_logo_mini_nintendo_switch, // <--- Úsalo si tienes el logo ROJO de Nintendo. Si no, pon null.
                     color = Color(0xFFE60012),
                     contentDescription = "Nintendo",
                     fallbackVector = vector
