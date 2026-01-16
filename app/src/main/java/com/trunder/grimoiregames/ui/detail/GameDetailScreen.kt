@@ -39,6 +39,9 @@ import com.trunder.grimoiregames.data.entity.Game
 import com.trunder.grimoiregames.R
 import com.trunder.grimoiregames.ui.common.PlatformResolver
 import com.trunder.grimoiregames.util.RatingMapper
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.ui.text.style.TextOverflow
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -286,6 +289,12 @@ fun GameDetailScreen(
                     }
 
                     HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+
+                    // 5.5 SECCIÓN DE DLCS (EL TESORO OCULTO)
+                    if (!currentSafeGame.dlcs.isNullOrEmpty()) {
+                        DlcListSection(dlcs = currentSafeGame.dlcs)
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+                    }
 
                     // 6. PROGRESO PERSONAL
                     Text("Tu Progreso", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
@@ -721,5 +730,81 @@ fun getScoreIconRes(source: String): Int {
         "Metacritic" -> R.drawable.ic_logo_metacritic
         "IGDB Score", "IGDB" -> R.drawable.ic_logo_igdb
         else -> R.drawable.ic_logo_igdb // Fallback (o un icono genérico de 'gamepad')
+    }
+}
+
+// --- COMPONENTES DE DLC ---
+
+@Composable
+fun DlcListSection(dlcs: List<com.trunder.grimoiregames.data.entity.DlcItem>) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = "DLC's (${dlcs.size})",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.SemiBold
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(horizontal = 4.dp) // Un pelín de margen para la sombra
+        ) {
+            items(dlcs) { dlc ->
+                DlcCard(dlc)
+            }
+        }
+    }
+}
+
+@Composable
+fun DlcCard(dlc: com.trunder.grimoiregames.data.entity.DlcItem) {
+    Card(
+        modifier = Modifier
+            .width(140.dp)  // Ancho fijo para uniformidad
+            .height(210.dp), // Altura suficiente para portada + texto
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column {
+            // 1. PORTADA DEL DLC
+            AsyncImage(
+                model = dlc.coverUrl ?: R.drawable.ic_logo_igdb, // Placeholder si falla
+                contentDescription = dlc.name,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(140.dp) // Imagen cuadrada/rectangular dominante
+                    .background(Color.Black.copy(alpha = 0.2f))
+            )
+
+            // 2. INFO (Título y Año)
+            Column(
+                modifier = Modifier
+                    .padding(10.dp)
+                    .fillMaxSize(),
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = dlc.name,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    lineHeight = 14.sp
+                )
+
+                if (!dlc.releaseDate.isNullOrEmpty()) {
+                    Text(
+                        text = dlc.releaseDate.take(4), // Solo el año (YYYY)
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        fontSize = 10.sp
+                    )
+                }
+            }
+        }
     }
 }
