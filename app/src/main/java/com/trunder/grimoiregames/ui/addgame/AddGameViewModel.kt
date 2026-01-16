@@ -5,7 +5,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.trunder.grimoiregames.data.entity.Game
 import com.trunder.grimoiregames.data.remote.dto.IgdbGameDto // 👈 CAMBIO A IGDB
 import com.trunder.grimoiregames.data.repository.GameRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -26,10 +25,17 @@ class AddGameViewModel @Inject constructor(
     var searchResults by mutableStateOf<List<IgdbGameDto>>(emptyList())
         private set
 
-    var isLoading by mutableStateOf(false)
+    var isSearching by mutableStateOf(false)
         private set
 
     var errorMessage by mutableStateOf<String?>(null)
+        private set
+
+    var isSaving by mutableStateOf(false)
+        private set
+    var saveProgress by mutableStateOf(0f)
+        private set
+    var saveStatus by mutableStateOf("")
         private set
 
     private var searchJob: Job? = null
@@ -41,7 +47,7 @@ class AddGameViewModel @Inject constructor(
             delay(800L) // Un poco más de delay para no saturar a IGDB mientras escribes
 
             if (query.isNotEmpty()) {
-                isLoading = true
+                isSearching = true
                 errorMessage = null
 
                 try {
@@ -64,12 +70,12 @@ class AddGameViewModel @Inject constructor(
                     }
 
                 } finally {
-                    isLoading = false
+                    isSearching = false
                 }
             } else {
                 searchResults = emptyList()
                 errorMessage = null
-                isLoading = false
+                isSearching = false
             }
         }
     }
@@ -78,16 +84,31 @@ class AddGameViewModel @Inject constructor(
     // Es una función que ejecutaremos SOLO cuando hayamos terminado de guardar.
     fun onGameSelected(dto: IgdbGameDto, selectedPlatform: String, selectedRegion: String, onSuccess: () -> Unit) {
         viewModelScope.launch {
+            isSaving = true
+            saveProgress = 0f
+            saveStatus = "Iniciando..."
+
             try {
                 // Pasamos ID, Plataforma y REGIÓN al repositorio
-                repository.addGame(dto.id, selectedPlatform, selectedRegion)
-
+                repository.addGame(
+                    igdbId = dto.id,
+                    selectedPlatform = selectedPlatform,
+                    userRegion = selectedRegion,
+                    onProgress = { progress, status ->
+                        // Actualizamos la UI en tiempo real
+                        saveProgress = progress
+                        saveStatus = status
+                    }
+                )
                 // Esperamos a que termine addGame y ENTONCES llamamos a onSuccess
                 onSuccess()
 
             } catch (e: Exception) {
                 e.printStackTrace()
-                // Aquí podrías manejar un error
+                errorMessage = "Error al guardar: ${e.message}"
+            } finally {
+                // 4. Cerrar Modal
+                isSaving = false
             }
         }
     }

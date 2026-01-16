@@ -4,12 +4,12 @@ import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.jsoup.Jsoup
+import java.net.URLEncoder
 import java.text.Normalizer
-import java.util.Locale
+import kotlin.math.abs
 
 object MetacriticScraper {
 
-    // Estructura de datos simple para devolver el resultado
     data class ScrapeResult(
         val metaScore: Int?,
         val userScore: Int?
@@ -17,83 +17,124 @@ object MetacriticScraper {
 
     suspend fun scrapScores(gameTitle: String, platform: String): ScrapeResult = withContext(Dispatchers.IO) {
         try {
-            // 1. Slugify del título
-            val gameSlug = slugify(gameTitle)
+            // 1. 🕵️‍♀️ BÚSQUEDA
+            val searchUrl = buildSearchUrl(gameTitle)
+            Log.d("ORACLE_META", "📡 Buscando en Metacritic: $searchUrl")
 
-            // 2. Construir URL Raíz
-            val url = "https://www.metacritic.com/game/$gameSlug/"
-
-            Log.d("SCRAPER", "Intentando scrapear: $url")
-
-            // 3. Conectar y descargar HTML
-            val doc = Jsoup.connect(url)
-                .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+            val searchDoc = Jsoup.connect(searchUrl)
+                .userAgent("Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36")
                 .header("Accept-Language", "en-US,en;q=0.9")
                 .timeout(10000)
                 .get()
 
-            // 4. Buscar las notas (SELECTORES CORREGIDOS)
-            // El truco es buscar la clase 'c-siteReviewScore_background', que es la cajita de color que tiene el número.
+            // 2. 🎯 SELECCIÓN INTELIGENTE (SNIPER MODE 2.0)
+            val targetUrl = findBestMatchInSearchResults(searchDoc, gameTitle)
 
-            // --- METASCORE (Prensa) ---
-            // Buscamos dentro del bloque de score info -> el elemento con el background de color
-            val metaScoreElement = doc.selectFirst(".c-productScoreInfo_scoreNumber .c-siteReviewScore_background")
-                ?: doc.selectFirst("div[data-testid='critic-score-info'] .c-siteReviewScore_background")
-                ?: doc.selectFirst(".metascore_w.larger") // Fallback web antigua
+            if (targetUrl == null) {
+                Log.w("ORACLE_META", "💨 No se encontró ningún candidato viable en la búsqueda.")
+                return@withContext ScrapeResult(null, null)
+            }
 
-            // --- USER SCORE (Usuarios) ---
-            // Buscamos dentro del bloque de usuario -> el elemento con el background de color
-            val userScoreElement = doc.selectFirst(".c-siteReviewScore_userScore .c-siteReviewScore_background")
-                ?: doc.selectFirst("div[data-testid='user-score-info'] .c-siteReviewScore_background")
-                ?: doc.selectFirst(".metascore_w.user") // Fallback web antigua
+            Log.d("ORACLE_META", "✅ Objetivo fijado: $targetUrl")
 
-            // Log de depuración para ver qué texto exacto estamos cogiendo ahora
-            val metaTextRaw = metaScoreElement?.text()
-            val userTextRaw = userScoreElement?.text()
-            Log.d("SCRAPER", "🔎 Raw Text -> Meta: '$metaTextRaw' | User: '$userTextRaw'")
-
-            // 5. Limpiar y convertir a Int
-            val metaScore = parseScore(metaTextRaw)
-            val userScore = parseScore(userTextRaw)
-
-            // Convertimos nota usuario (8.5) a base 100 (85)
-            val finalUserScore = userScore?.let { if (it <= 10) it * 10 else it }
-
-            Log.d("SCRAPER", "✅ ÉXITO: Prensa=$metaScore, User=$finalUserScore")
-
-            ScrapeResult(metaScore, finalUserScore)
+            // 3. ⛏️ EXTRACCIÓN
+            return@withContext fetchScoresFromPage(targetUrl)
 
         } catch (e: Exception) {
-            Log.e("SCRAPER", "❌ ERROR scrapeando: ${e.message}")
-            ScrapeResult(null, null)
+            Log.e("ORACLE_META", "💥 Misión fallida: ${e.message}")
+            return@withContext ScrapeResult(null, null)
         }
     }
 
-    // --- HELPERS ---
+    // --- CEREBRO DE ORACLE ---
 
-    private fun slugify(input: String): String {
+    private fun buildSearchUrl(query: String): String {
+        val cleanQuery = sanitizeQuery(query)
+        val encodedQuery = URLEncoder.encode(cleanQuery, "UTF-8")
+        return "https://www.metacritic.com/search/$encodedQuery/?page=1&category=13"
+    }
+
+    private fun findBestMatchInSearchResults(doc: org.jsoup.nodes.Document, originalTitle: String): String? {
+        val candidatesElements = doc.select("a[href^='/game/']")
+        val cleanOriginalTitle = sanitizeQuery(originalTitle).lowercase()
+
+        data class Candidate(val url: String, val title: String, val diffScore: Int)
+        val matches = mutableListOf<Candidate>()
+
+        Log.d("ORACLE_DEBUG", "🔎 Analizando ${candidatesElements.size} candidatos...")
+
+        for (link in candidatesElements) {
+            val titleText = link.text().trim()
+            if (titleText.isBlank()) continue
+
+            // 👇 Aquí usamos la nueva sanitización que entiende "plus"
+            val cleanCandidateTitle = sanitizeQuery(titleText).lowercase()
+
+            // 1. FILTRO DE CONTENIDO
+            if (cleanCandidateTitle.contains(cleanOriginalTitle) || cleanOriginalTitle.contains(cleanCandidateTitle)) {
+
+                // 2. PUNTUACIÓN DE DIFERENCIA
+                // Ahora "Rain Code+" (convertido a "plus") y "Rain Code Plus" tendrán diff 0.
+                val diff = abs(cleanOriginalTitle.length - cleanCandidateTitle.length)
+
+                matches.add(Candidate("https://www.metacritic.com${link.attr("href")}", titleText, diff))
+                Log.d("ORACLE_DEBUG", "   ➡ Candidato: '$titleText' (Limpio: '$cleanCandidateTitle') | Diff: $diff")
+            }
+        }
+
+        // 3. SELECCIÓN DEL MEJOR
+        val bestMatch = matches.minByOrNull { it.diffScore }
+
+        if (bestMatch != null) {
+            Log.d("ORACLE_DEBUG", "🎯 GANADOR: '${bestMatch.title}' (Diff: ${bestMatch.diffScore})")
+            return bestMatch.url
+        }
+
+        return null
+    }
+
+    private fun fetchScoresFromPage(url: String): ScrapeResult {
+        val doc = Jsoup.connect(url)
+            .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+            .timeout(8000)
+            .get()
+
+        val metaScoreElement = doc.selectFirst(".c-productScoreInfo_scoreNumber .c-siteReviewScore_background")
+            ?: doc.selectFirst("div[data-testid='critic-score-info'] .c-siteReviewScore_background")
+            ?: doc.selectFirst(".metascore_w.larger")
+
+        val userScoreElement = doc.selectFirst(".c-siteReviewScore_userScore .c-siteReviewScore_background")
+            ?: doc.selectFirst("div[data-testid='user-score-info'] .c-siteReviewScore_background")
+            ?: doc.selectFirst(".metascore_w.user")
+
+        val metaScoreRaw = parseScore(metaScoreElement?.text())
+        val userScoreRaw = parseScore(userScoreElement?.text())
+
+        val metaScore = metaScoreRaw?.toInt()
+        val userScore = userScoreRaw?.let {
+            if (it <= 10.0) (it * 10).toInt() else it.toInt()
+        }
+
+        return ScrapeResult(metaScore, userScore)
+    }
+
+    private fun sanitizeQuery(input: String): String {
         val normalized = Normalizer.normalize(input, Normalizer.Form.NFD)
         return normalized
-            .replace("\\p{InCombiningDiacriticalMarks}+".toRegex(), "") // Quita tildes
-            .lowercase(Locale.ROOT)
+            .replace("\\p{InCombiningDiacriticalMarks}+".toRegex(), "")
             .replace(":", "")
-            .replace("'", "")
-            .replace(".", "")
-            .replace("&", "and")
-            .replace("+", "plus")
-            .replace("/", "-")
+            .replace(" - ", " ")
+            .replace("-", " ")
+            // 👇 ¡EL CAMBIO CLAVE! 👇
+            .replace("+", " plus ") // Traducimos el símbolo a palabra
+            .replace("&", " and ")  // Y el ampersand también
             .trim()
-            .replace("[^a-z0-9\\s-]".toRegex(), "")
-            .replace("\\s+".toRegex(), "-")
+            .replace("\\s+".toRegex(), " ") // Evitamos dobles espacios
     }
 
-    private fun parseScore(text: String?): Int? {
-        if (text.isNullOrBlank() || text.contains("tbd", true) || text.equals("tbd", true)) return null
-        // Eliminamos cualquier caracter que no sea número o punto (por si acaso se cuela algo más)
+    private fun parseScore(text: String?): Double? {
+        if (text.isNullOrBlank() || text.contains("tbd", true)) return null
         val cleanText = text.trim()
-        return cleanText.toDoubleOrNull()?.toInt()
+        return cleanText.toDoubleOrNull()
     }
-
-    // (La función mapPlatformToMetacritic ya no se usa porque vamos a la URL raíz,
-    // pero la puedes dejar o borrar, no molesta).
 }

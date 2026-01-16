@@ -1,6 +1,5 @@
 package com.trunder.grimoiregames.ui.addgame
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -16,7 +15,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -92,7 +90,7 @@ fun AddGameScreen(
             }
 
             // 3. LISTA DE RESULTADOS
-            if (viewModel.isLoading) {
+            if (viewModel.isSearching) {
                 Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
                 }
@@ -233,6 +231,41 @@ fun AddGameScreen(
                     }
                 }
             )
+
+            if (viewModel.isSaving) {
+                AlertDialog(
+                    onDismissRequest = { /* No hacer nada para impedir cerrar */ },
+                    title = { Text(text = "Añadiendo Juego...") },
+                    text = {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            // Barra de progreso animada
+                            LinearProgressIndicator(
+                                progress = { viewModel.saveProgress },
+                                modifier = Modifier.fillMaxWidth().height(8.dp),
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            // Mensaje de estado cambiante (ej: "Hackeando Metacritic...")
+                            Text(
+                                text = viewModel.saveStatus,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.secondary
+                            )
+
+                            // Porcentaje
+                            Text(
+                                text = "${(viewModel.saveProgress * 100).toInt()}%",
+                                style = MaterialTheme.typography.labelSmall,
+                                modifier = Modifier.padding(top = 4.dp)
+                            )
+                        }
+                    },
+                    confirmButton = {} // Sin botones, se cierra solo al acabar
+                )
+            }
         }
     }
 }

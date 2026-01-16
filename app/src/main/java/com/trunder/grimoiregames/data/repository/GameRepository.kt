@@ -55,9 +55,10 @@ class GameRepository @Inject constructor(
     }
 
     // --- AÑADIR JUEGO (Mapeo completo con Doble Llamada) ---
-    suspend fun addGame(igdbId: Int, selectedPlatform: String, userRegion: String) {
+    suspend fun addGame(igdbId: Int, selectedPlatform: String, userRegion: String, onProgress: (Float, String) -> Unit) {
         android.util.Log.d("DEBUG_APP", "🎬 Iniciando addGame para ID: $igdbId")
 
+        onProgress(0.1f, "Conectando con IGDB...")
         val token = getValidToken()
 
         // 1. PRIMERA LLAMADA: Pedimos el juego (age_ratings vendrá como lista de IDs)
@@ -66,6 +67,7 @@ class GameRepository @Inject constructor(
         val body = bodyString.toRequestBody("text/plain".toMediaTypeOrNull())
 
         try {
+            onProgress(0.2f, "Descargando datos del juego...") // 20%
             android.util.Log.d("DEBUG_APP", "🌍 Llamando a IGDB (Fase 1)...")
 
             val games = igdbApi.getGames(Constants.IGDB_CLIENT_ID, token, body)
@@ -81,6 +83,7 @@ class GameRepository @Inject constructor(
 
             // Si el juego tiene IDs de edad...
             if (!details.ageRatings.isNullOrEmpty()) {
+                onProgress(0.3f, "Verificando clasificación de edad...") // 30%
                 val ids = details.ageRatings.joinToString(",") // Ej: "105532,112550"
                 android.util.Log.d("DEBUG_APP", "🕵️ IDs de edad encontrados: $ids. Buscando detalles...")
 
@@ -98,13 +101,17 @@ class GameRepository @Inject constructor(
             }
             // ----------------------------------------------------------
 
+            onProgress(0.5f, "Hackeando base de datos de Metacritic...") // 50%
             // Scraper METACRITIC
             val scrapeResult = MetacriticScraper.scrapScores(details.name, selectedPlatform)
 
+            onProgress(0.7f, "Infiltrándose en OpenCritic...") // 70%
             // 👇 NUEVO: Scraper OPENCRITIC
             // Llamamos a la API de OpenCritic para obtener el "Top Critic Score"
             val openCriticScore = OpenCriticScraper.getScore(details.name)
 
+
+            onProgress(0.9f, "Escribiendo en el Grimorio...") // 90%
             val hdImageUrl = details.cover?.url?.replace("t_thumb", "t_cover_big")?.let { "https:$it" }
             val releaseDateStr = details.firstReleaseDate?.let {
                 java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date(it * 1000))
@@ -139,6 +146,7 @@ class GameRepository @Inject constructor(
             )
 
             gameDao.insertGame(newGame)
+            onProgress(1.0f, "¡Misión Cumplida!") // 100%
             android.util.Log.d("DEBUG_APP", "🎉 ¡ÉXITO! Juego guardado en Room con edad: ${newGame.ageRating}")
 
         } catch (e: Exception) {
