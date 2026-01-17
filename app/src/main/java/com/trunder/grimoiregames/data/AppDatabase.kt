@@ -11,7 +11,7 @@ import com.trunder.grimoiregames.data.dao.GameDao
 import com.trunder.grimoiregames.data.entity.Game
 
 // 1. Definimos las tablas (entities) y la versión de la BBDD.
-@Database(entities = [Game::class], version = 6, exportSchema = false)
+@Database(entities = [Game::class], version = 7, exportSchema = false)
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
 
@@ -23,11 +23,10 @@ abstract class AppDatabase : RoomDatabase() {
         @Volatile
         private var Instance: AppDatabase? = null
 
-        // 🔴 DEFINIMOS LA MIGRACIÓN DE V3 A V4
-        val MIGRATION_3_4 = object : Migration(5, 6) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE games ADD COLUMN opencriticPress INTEGER DEFAULT NULL")
-                db.execSQL("ALTER TABLE games ADD COLUMN opencriticUser INTEGER DEFAULT NULL")
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // Añadimos la columna 'franchise' de tipo TEXT que puede ser NULL
+                database.execSQL("ALTER TABLE games ADD COLUMN franchise TEXT DEFAULT NULL")
             }
         }
 

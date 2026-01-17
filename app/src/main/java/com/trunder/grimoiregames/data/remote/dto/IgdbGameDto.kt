@@ -30,7 +30,9 @@ data class IgdbGameDto(
     @SerializedName("collection")
     val collection: IgdbItemDto?,
 
-    @SerializedName("version_parent") val versionParent: IgdbGameDto? = null
+    @SerializedName("version_parent") val versionParent: IgdbGameDto? = null,
+
+    val franchises: List<FranchiseDto>?
 )
 
 data class IgdbImageDto(

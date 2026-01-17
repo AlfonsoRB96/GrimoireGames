@@ -28,7 +28,8 @@ data class Game(
     val opencriticPress: Int? = null,
     val opencriticUser: Int? = null,
     val region: String = "PAL",
-    val dlcs: List<DlcItem>? = null
+    val dlcs: List<DlcItem>? = null,
+    val franchise: String? = null
 ) {
 // Helper para mostrar la mejor nota disponible
 val displayScore: Int?

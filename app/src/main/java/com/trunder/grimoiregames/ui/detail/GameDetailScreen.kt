@@ -148,6 +148,20 @@ fun GameDetailScreen(
                         fontWeight = FontWeight.Bold
                     )
 
+                    // FRANQUICIA
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    ) {
+                        currentSafeGame.franchise?.let {
+                            Text(
+                                text = it,
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+
                     // Plataforma + Badge Región
                     Row(
                         verticalAlignment = Alignment.CenterVertically,

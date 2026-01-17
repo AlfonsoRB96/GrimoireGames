@@ -45,7 +45,7 @@ class GameRepository @Inject constructor(
         val cleanQuery = query.trim()
         // Nota: En búsqueda simple no traemos toda la herencia profunda para no ralentizar,
         // solo lo básico por si acaso.
-        val bodyString = "search \"$cleanQuery\"; fields name, cover.url, first_release_date, total_rating, genres.name, platforms.name, summary, involved_companies.company.name, involved_companies.developer, involved_companies.publisher, age_ratings, game_type, parent_game, version_parent.name, version_parent.summary; where game_type = (0, 3, 4, 8, 9, 10, 11); limit 20;"
+        val bodyString = "search \"$cleanQuery\"; fields name, cover.url, first_release_date, total_rating, genres.name, platforms.name, summary, involved_companies.company.name, involved_companies.developer, involved_companies.publisher, age_ratings, game_type, parent_game, version_parent.name, version_parent.summary, franchises.name; where game_type = (0, 3, 4, 8, 9, 10, 11); limit 20;"
         val body = bodyString.toRequestBody("text/plain".toMediaTypeOrNull())
         return igdbApi.getGames(Constants.IGDB_CLIENT_ID, token, body)
     }
@@ -56,13 +56,14 @@ class GameRepository @Inject constructor(
         onProgress(0.1f, "Conectando con IGDB...")
         val token = getValidToken()
 
-        // 🟢 UPDATE QUERY: Pedimos companies y DLCs del PADRE (version_parent)
+        // 🟢 AÑADIDO: franchises.name y version_parent.franchises.name
         val bodyString = """
             fields name, cover.url, first_release_date, rating, aggregated_rating, genres.name, platforms.name, summary, involved_companies.company.name, involved_companies.developer, involved_companies.publisher, age_ratings,
             dlcs.name, dlcs.cover.url, dlcs.first_release_date, 
-            game_type, 
+            game_type, franchises.name,
             version_parent.name, 
             version_parent.summary,
+            version_parent.franchises.name,
             version_parent.involved_companies.company.name, 
             version_parent.involved_companies.developer, 
             version_parent.involved_companies.publisher,
@@ -106,7 +107,7 @@ class GameRepository @Inject constructor(
 
             // 2. Summary Fusionado (Padre + Hijo)
             val finalSummary = if (hasParent) {
-                val parentSum = details.versionParent?.summary ?: ""
+                val parentSum = details.versionParent.summary ?: ""
                 val childSum = details.summary ?: ""
                 if (parentSum.isNotBlank()) "$parentSum\n\n🔹 ${details.name}:\n$childSum" else childSum
             } else {
@@ -114,7 +115,7 @@ class GameRepository @Inject constructor(
             }
 
             // 3. 🟢 Developer & Publisher (Heredado del Padre si existe)
-            val companiesSource = if (hasParent && !details.versionParent?.involvedCompanies.isNullOrEmpty()) {
+            val companiesSource = if (hasParent && !details.versionParent.involvedCompanies.isNullOrEmpty()) {
                 details.versionParent.involvedCompanies
             } else {
                 details.involvedCompanies
@@ -128,6 +129,13 @@ class GameRepository @Inject constructor(
                 details.versionParent.dlcs
             } else {
                 details.dlcs
+            }
+
+            // Intentamos coger la franquicia del padre primero, si no, la del propio juego
+            val franchiseName = if (hasParent && !details.versionParent?.franchises.isNullOrEmpty()) {
+                details.versionParent.franchises.first().name
+            } else {
+                details.franchises?.firstOrNull()?.name
             }
             // =================================================================
 
@@ -173,7 +181,8 @@ class GameRepository @Inject constructor(
                 publisher = publisherName, // 🟢 Heredado
                 region = userRegion,
                 ageRating = resolveAgeRating(finalAgeRatings, userRegion),
-                dlcs = dlcList // 🟢 Heredado
+                dlcs = dlcList, // 🟢 Heredado
+                franchise = franchiseName
             )
 
             gameDao.insertGame(newGame)
@@ -191,9 +200,10 @@ class GameRepository @Inject constructor(
         val gameQuery = """
             fields name, cover.url, first_release_date, rating, aggregated_rating, genres.name, platforms.name, summary, involved_companies.company.name, involved_companies.developer, involved_companies.publisher, age_ratings, 
             dlcs.name, dlcs.cover.url, dlcs.first_release_date, 
-            game_type, 
+            game_type, franchises.name,
             version_parent.name, 
             version_parent.summary,
+            version_parent.franchises.name,
             version_parent.involved_companies.company.name, 
             version_parent.involved_companies.developer, 
             version_parent.involved_companies.publisher,
@@ -222,10 +232,10 @@ class GameRepository @Inject constructor(
             // =================================================================
             val hasParent = details.versionParent != null
 
-            val nameForScraping = if (hasParent) details.versionParent!!.name else details.name
+            val nameForScraping = if (hasParent) details.versionParent.name else details.name
 
             val finalSummary = if (hasParent) {
-                val parentSum = details.versionParent?.summary ?: ""
+                val parentSum = details.versionParent.summary ?: ""
                 val childSum = details.summary ?: ""
                 if (parentSum.isNotBlank()) "$parentSum\n\n🔹 ${details.name}:\n$childSum" else childSum
             } else {
@@ -233,8 +243,8 @@ class GameRepository @Inject constructor(
             }
 
             // 🟢 Heredar Companies
-            val companiesSource = if (hasParent && !details.versionParent?.involvedCompanies.isNullOrEmpty()) {
-                details.versionParent!!.involvedCompanies
+            val companiesSource = if (hasParent && !details.versionParent.involvedCompanies.isNullOrEmpty()) {
+                details.versionParent.involvedCompanies
             } else {
                 details.involvedCompanies
             }
@@ -242,10 +252,16 @@ class GameRepository @Inject constructor(
             val publisherName = companiesSource?.find { it.publisher }?.company?.name ?: "Desconocido"
 
             // 🟢 Heredar DLCs
-            val dlcsSource = if (hasParent && !details.versionParent?.dlcs.isNullOrEmpty()) {
-                details.versionParent!!.dlcs
+            val dlcsSource = if (hasParent && !details.versionParent.dlcs.isNullOrEmpty()) {
+                details.versionParent.dlcs
             } else {
                 details.dlcs
+            }
+
+            val franchiseName = if (hasParent && !details.versionParent.franchises.isNullOrEmpty()) {
+                details.versionParent.franchises.first().name
+            } else {
+                details.franchises?.firstOrNull()?.name
             }
             // =================================================================
 
@@ -280,7 +296,8 @@ class GameRepository @Inject constructor(
                 publisher = publisherName, // 🟢 Update Heredado
                 ageRating = resolveAgeRating(finalAgeRatings, game.region),
                 imageUrl = hdImageUrl ?: game.imageUrl,
-                dlcs = dlcList // 🟢 Update Heredado
+                dlcs = dlcList, // 🟢 Update Heredado
+                franchise = franchiseName
             )
 
             gameDao.updateGame(updatedGame)

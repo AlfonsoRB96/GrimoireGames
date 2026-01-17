@@ -25,8 +25,8 @@ object DatabaseModule {
             AppDatabase::class.java,
             "grimoire_database"
         )
-            // 1. ❌ ELIMINA o comenta la migración vieja que da problemas
-            // .addMigrations(AppDatabase.MIGRATION_3_4)
+
+            .addMigrations(AppDatabase.MIGRATION_6_7)
 
             // 2. ✅ DESCOMENTA esto para permitir borrar la BBDD si algo no cuadra
             .fallbackToDestructiveMigration()
