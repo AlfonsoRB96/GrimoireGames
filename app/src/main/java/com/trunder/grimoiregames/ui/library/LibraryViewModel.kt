@@ -16,7 +16,8 @@ enum class SortOption {
     PLATFORM,
     STATUS,
     TIER,
-    HOURS
+    HOURS,
+    FRANCHISE
 }
 
 data class GameFilters(
@@ -29,7 +30,8 @@ data class GameFilters(
     val metacriticRanges: Set<String> = emptySet(),
     val releaseYears: Set<String> = emptySet(),
     val tiers: Set<String> = emptySet(),
-    val hourRanges: Set<String> = emptySet() // 🆕 AÑADIDO: Filtro de horas
+    val hourRanges: Set<String> = emptySet(),
+    val franchises: Set<String> = emptySet()
 )
 
 @HiltViewModel
@@ -83,14 +85,14 @@ class LibraryViewModel @Inject constructor(
             "Plataforma" to games.map { it.platform }.distinct().sorted(),
             "Género" to games.mapNotNull { it.genre }.filter { it.isNotBlank() }.distinct().sorted(),
             "Estado" to listOf("Playing", "Completed", "Backlog"),
+            // 🟢 AÑADIDO: FRANQUICIA A LA LISTA DE FILTROS DISPONIBLES
+            "Franquicia" to games.mapNotNull { it.franchise }.filter { it.isNotBlank() }.distinct().sorted(),
             "Desarrolladora" to games.mapNotNull { it.developer }.filter { it.isNotBlank() }.distinct().sorted(),
             "Distribuidora" to games.mapNotNull { it.publisher }.filter { it.isNotBlank() }.distinct().sorted(),
             "Clasificación por edades" to games.mapNotNull { it.ageRating }.filter { it.isNotBlank() }.distinct().sorted(),
             "Tier Personal" to listOf("S+", "S", "A", "B", "C", "D", "Sin Puntuación"),
             "Metacritic" to listOf("90+ (Obra Maestra)", "75-89 (Muy Bueno)", "50-74 (Mixto)", "0-49 (Malo)", "N/A (Sin puntuación)"),
             "Año de Lanzamiento" to games.mapNotNull { it.releaseDate?.take(4) }.distinct().sortedDescending(),
-
-            // 🆕 AÑADIDO: Opciones para el filtro de horas
             "Horas de Juego" to listOf(
                 "+1000 horas", "+500 horas", "+100 horas", "+50 horas",
                 "+25 horas", "+10 horas", "+5 horas", "+4 horas",
@@ -170,6 +172,7 @@ class LibraryViewModel @Inject constructor(
         if (currentFilters.platforms.isNotEmpty()) result = result.filter { it.platform in currentFilters.platforms }
         if (currentFilters.genres.isNotEmpty()) result = result.filter { it.genre != null && it.genre in currentFilters.genres }
         if (currentFilters.statuses.isNotEmpty()) result = result.filter { it.status in currentFilters.statuses }
+        if (currentFilters.franchises.isNotEmpty()) result = result.filter { it.franchise != null && it.franchise in currentFilters.franchises }
         if (currentFilters.developers.isNotEmpty()) result = result.filter { it.developer != null && it.developer in currentFilters.developers }
         if (currentFilters.publishers.isNotEmpty()) result = result.filter { it.publisher != null && it.publisher in currentFilters.publishers }
         if (currentFilters.ageRatings.isNotEmpty()) result = result.filter { it.ageRating != null && it.ageRating in currentFilters.ageRatings }
@@ -222,6 +225,7 @@ class LibraryViewModel @Inject constructor(
             SortOption.STATUS -> result.sortedByDescending { it.status == "Playing" }
             SortOption.TIER -> result.sortedByDescending { it.userRating ?: -1 }
             SortOption.HOURS -> result.sortedByDescending { it.hoursPlayed ?: 0 }
+            SortOption.FRANCHISE -> result.sortedBy { it.franchise ?: "ZZZ" }
         }
 
         // 5. AGRUPACIÓN
@@ -231,6 +235,7 @@ class LibraryViewModel @Inject constructor(
             SortOption.STATUS -> sortedList.groupBy { it.status }
             SortOption.TIER -> sortedList.groupBy { calculateTier(it.userRating) }
             SortOption.HOURS -> sortedList.groupBy { getHourGroupLabel(it.hoursPlayed ?: 0) }
+            SortOption.FRANCHISE -> sortedList.groupBy { it.franchise ?: "Sin Franquicia" }
         }
 
     }.stateIn(

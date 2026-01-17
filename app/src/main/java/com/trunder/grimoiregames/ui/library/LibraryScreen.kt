@@ -137,13 +137,14 @@ fun LibraryScreen(
                                     "Plataforma" -> activeFilters.platforms.isNotEmpty()
                                     "Género" -> activeFilters.genres.isNotEmpty()
                                     "Estado" -> activeFilters.statuses.isNotEmpty()
+                                    // 🟢 NUEVO: Estado activo para Franquicia
+                                    "Franquicia" -> activeFilters.franchises.isNotEmpty()
                                     "Desarrolladora" -> activeFilters.developers.isNotEmpty()
                                     "Distribuidora" -> activeFilters.publishers.isNotEmpty()
                                     "Clasificación por edades" -> activeFilters.ageRatings.isNotEmpty()
                                     "Tier Personal" -> activeFilters.tiers.isNotEmpty()
                                     "Metacritic" -> activeFilters.metacriticRanges.isNotEmpty()
                                     "Año de Lanzamiento" -> activeFilters.releaseYears.isNotEmpty()
-                                    // 🔴 CORRECCIÓN 1: Coincidir con el nombre del ViewModel
                                     "Horas de Juego" -> activeFilters.hourRanges.isNotEmpty()
                                     else -> false
                                 }
@@ -218,18 +219,19 @@ fun LibraryScreen(
                                     }
                                 }
                             } else {
-                                // -> GENERIC LOGIC FOR OTHER FILTERS <-
+                                // -> GENERIC LOGIC FOR OTHER FILTERS (INCLUDING FRANCHISE) <-
                                 items(options) { option ->
                                     val isSelected = when(selectedCategoryForFilter) {
                                         "Plataforma" -> option in activeFilters.platforms
                                         "Género" -> option in activeFilters.genres
                                         "Estado" -> option in activeFilters.statuses
+                                        // 🟢 NUEVO: Lógica de selección para Franquicia
+                                        "Franquicia" -> option in activeFilters.franchises
                                         "Desarrolladora" -> option in activeFilters.developers
                                         "Distribuidora" -> option in activeFilters.publishers
                                         "Clasificación por edades" -> option in activeFilters.ageRatings
                                         "Metacritic" -> option in activeFilters.metacriticRanges
                                         "Año de Lanzamiento" -> option in activeFilters.releaseYears
-                                        // 🔴 CORRECCIÓN 2: Coincidir con el nombre del ViewModel
                                         "Horas de Juego" -> option in activeFilters.hourRanges
                                         else -> false
                                     }
@@ -279,7 +281,8 @@ fun LibraryScreen(
                             val totalFilters = activeFilters.platforms.size + activeFilters.genres.size +
                                     activeFilters.statuses.size + activeFilters.developers.size +
                                     activeFilters.releaseYears.size + activeFilters.tiers.size +
-                                    activeFilters.hourRanges.size // 🆕 Contamos también el filtro de horas
+                                    activeFilters.hourRanges.size +
+                                    activeFilters.franchises.size // 🟢 AÑADIDO AL CONTADOR
                             if (totalFilters > 0) {
                                 Text("Filtros activos: $totalFilters", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                             }
@@ -303,6 +306,8 @@ fun LibraryScreen(
                                 DropdownMenuItem(text = { Text("Alfabético") }, onClick = { viewModel.onSortChange(SortOption.TITLE); showSortMenu = false })
                                 DropdownMenuItem(text = { Text("Plataforma") }, onClick = { viewModel.onSortChange(SortOption.PLATFORM); showSortMenu = false })
                                 DropdownMenuItem(text = { Text("Estado") }, onClick = { viewModel.onSortChange(SortOption.STATUS); showSortMenu = false })
+                                // 🟢 NUEVA OPCIÓN DE MENÚ
+                                DropdownMenuItem(text = { Text("Franquicia") }, onClick = { viewModel.onSortChange(SortOption.FRANCHISE); showSortMenu = false })
                                 DropdownMenuItem(text = { Text("Tier") }, onClick = { viewModel.onSortChange(SortOption.TIER); showSortMenu = false })
                                 DropdownMenuItem(text = { Text("Horas de Juego") }, onClick = { viewModel.onSortChange(SortOption.HOURS); showSortMenu = false }
                                 )
@@ -355,7 +360,7 @@ fun LibraryScreen(
                         items(gamesInGroup) { game ->
                             GameCard(
                                 game = game,
-                                onClick = { onGameClick(game.id) },
+                                onClick = { onGameClick(game.rawgId.toInt()) }, // 🟢 Usamos rawgId porque 'id' no existe en entity
                                 onLongClick = { gameToDelete = game }
                             )
                         }
@@ -366,6 +371,8 @@ fun LibraryScreen(
     }
 }
 
+// ... (El resto de componentes: GameCard, UpdateProgressDialog, etc. se mantienen igual) ...
+// Asegúrate de incluir el GameCard y UpdateProgressDialog aquí abajo tal cual estaban
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun GameCard(game: Game, onClick: () -> Unit, onLongClick: () -> Unit) {
@@ -429,7 +436,6 @@ fun GameCard(game: Game, onClick: () -> Unit, onLongClick: () -> Unit) {
                             )
                         }
                         // CASO 2: Tenemos vector de respaldo (Fallback)
-                        // 🔴 CORRECCIÓN: Comprobamos que no sea null con un 'else if'
                         else if (theme.fallbackVector != null) {
                             Icon(
                                 imageVector = theme.fallbackVector, // Ahora Kotlin sabe que no es null
