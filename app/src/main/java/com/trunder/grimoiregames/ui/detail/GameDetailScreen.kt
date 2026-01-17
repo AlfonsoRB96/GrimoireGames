@@ -25,6 +25,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
@@ -138,7 +140,7 @@ fun GameDetailScreen(
                 }
 
                 Column(modifier = Modifier.padding(16.dp)) {
-                    // ... (El resto del código sigue exactamente igual) ...
+
                     // 2. TÍTULO Y PLATAFORMA
                     Text(
                         text = currentSafeGame.title,
@@ -170,7 +172,7 @@ fun GameDetailScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // CÁLCULO DE NOTAS
+                        // 🟢 FIX DE ORACLE: CÁLCULO INDEPENDIENTE DE COLORES 🟢
                         val pressScoreToDisplay = currentSafeGame.metacriticPress
                             ?: currentSafeGame.opencriticPress
                             ?: currentSafeGame.igdbPress
@@ -181,8 +183,15 @@ fun GameDetailScreen(
                             else -> "IGDB Score"
                         }
 
-                        val scoreColor = getScoreColor(pressScoreToDisplay, pressLabel)
+                        // Color SOLO para la prensa
+                        val pressColor = getScoreColor(pressScoreToDisplay, pressLabel)
+
+                        // User Score
                         val userScoreToDisplay = currentSafeGame.metacriticUser ?: currentSafeGame.igdbUser
+
+                        // Color SOLO para el usuario (Calculado independientemente)
+                        // Nota: Usamos 'pressLabel' para saber qué baremo usar (Metacritic vs IGDB), pero el valor es el del usuario.
+                        val userColor = getScoreColor(userScoreToDisplay, pressLabel)
 
                         // A. NOTAS (Logo + Prensa + User)
                         Row(
@@ -191,48 +200,45 @@ fun GameDetailScreen(
                                 .clip(RoundedCornerShape(8.dp))
                                 .clickable { showScoreDialog = true }
                                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
-                                .padding(horizontal = 12.dp, vertical = 6.dp) // Un poco más de padding lateral
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
                         ) {
                             // 1. EL LOGO DE LA FUENTE (A la izquierda)
                             Image(
                                 painter = androidx.compose.ui.res.painterResource(id = getScoreIconRes(pressLabel)),
                                 contentDescription = pressLabel,
-                                modifier = Modifier.size(28.dp), // Un pelín más grande para que se vea el detalle
+                                modifier = Modifier.size(28.dp),
                                 contentScale = ContentScale.Fit
                             )
 
                             // Separador vertical sutil entre logo y notas
                             Spacer(modifier = Modifier.width(12.dp))
-                            // Opcional: Una línea vertical finita queda muy elegante
+                            // Usamos el color de prensa como color "temático" para el divisor
                             VerticalDivider(
                                 modifier = Modifier.height(24.dp),
                                 thickness = 1.dp,
-                                color = scoreColor.copy(alpha = 0.3f)
+                                color = pressColor.copy(alpha = 0.3f)
                             )
                             Spacer(modifier = Modifier.width(12.dp))
 
-                            // 2. NOTA PRENSA
+                            // 2. NOTA PRENSA (Usa pressColor)
                             RatingBadge(
                                 score = pressScoreToDisplay,
                                 label = "Score",
-                                customColor = scoreColor
+                                customColor = pressColor // 👈 Color correcto de prensa
                             )
 
                             Spacer(modifier = Modifier.width(12.dp))
 
-                            // 3. NOTA USER
+                            // 3. NOTA USER (Usa userColor)
                             RatingBadge(
                                 score = userScoreToDisplay,
                                 label = "User",
-                                customColor = scoreColor
+                                customColor = userColor // 👈 Color correcto de usuario
                             )
                         }
 
                         // B. INFO TEXTUAL (Año y Género)
-                        // Al usar SpaceBetween, esto se alineará a la derecha de las notas
                         InfoItem(label = "Año", value = currentSafeGame.releaseDate?.take(4) ?: "TBA")
-
-                        // Cogemos solo el primer género para que no descuadre el diseño si hay muchos
                         InfoItem(label = "Género", value = currentSafeGame.genre?.split(",")?.firstOrNull() ?: "N/A")
                     }
 
@@ -769,6 +775,9 @@ fun DlcListSection(
 
 @Composable
 fun DlcCard(dlc: com.trunder.grimoiregames.data.entity.DlcItem, onClick: () -> Unit) {
+    // 🕵️‍♀️ ORACLE VISUAL PATCH: Definimos la matriz de desaturación
+    val saturationMatrix = remember { ColorMatrix() }
+
     Card(
         modifier = Modifier
             .width(120.dp)       // Ancho ajustado
@@ -783,7 +792,13 @@ fun DlcCard(dlc: com.trunder.grimoiregames.data.entity.DlcItem, onClick: () -> U
                 model = dlc.coverUrl ?: R.drawable.ic_logo_igdb,
                 contentDescription = dlc.name,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize(),
+                // 🎨 LOGICA DE COLOR: Si NO lo tienes -> Gris. Si lo tienes -> Color natural
+                colorFilter = if (!dlc.isOwned) {
+                    ColorFilter.colorMatrix(saturationMatrix.apply { setToSaturation(0f) })
+                } else {
+                    null
+                }
             )
 
             // 2. SCRIM / DEGRADADO (Para que el texto se lea bien sobre la imagen)

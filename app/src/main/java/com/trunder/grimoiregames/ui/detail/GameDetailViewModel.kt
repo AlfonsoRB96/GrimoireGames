@@ -16,6 +16,7 @@ import com.google.mlkit.common.model.DownloadConditions
 import com.google.mlkit.nl.translate.TranslateLanguage
 import com.google.mlkit.nl.translate.Translation
 import com.google.mlkit.nl.translate.TranslatorOptions
+import com.trunder.grimoiregames.data.entity.DlcItem
 import java.util.Locale
 
 @HiltViewModel
@@ -123,6 +124,28 @@ class GameDetailViewModel @Inject constructor(
             // Asegúrate de que en tu Entity se llame 'playTime' o 'hoursPlayed'
             repository.updateGame(game.copy(hoursPlayed = newHours))
             android.util.Log.d("GRIMOIRE", "💾 Horas guardadas: $newHours")
+        }
+    }
+
+    fun onDlcOwnershipChanged(game: Game, dlcName: String, isOwned: Boolean) {
+        viewModelScope.launch {
+            // 1. Verificamos que haya DLCs
+            val currentDlcs = game.dlcs ?: return@launch
+
+            // 2. Creamos una nueva lista actualizando SOLO el dlc que coincida por nombre
+            val updatedDlcs = currentDlcs.map { dlc ->
+                if (dlc.name == dlcName) {
+                    dlc.copy(isOwned = isOwned) // 🟢 Cambiamos estado
+                } else {
+                    dlc // Dejamos los demás igual
+                }
+            }
+
+            // 3. Guardamos el JUEGO COMPLETO con la nueva lista
+            // Esto disparará el Flow 'game' automáticamente y actualizará la UI
+            repository.updateGame(game.copy(dlcs = updatedDlcs))
+
+            android.util.Log.d("GRIMOIRE", "🛒 DLC '$dlcName' actualizado a: $isOwned")
         }
     }
 }

@@ -4,5 +4,6 @@ package com.trunder.grimoiregames.data.entity
 data class DlcItem(
     val name: String,
     val coverUrl: String?,
-    val releaseDate: String? // "YYYY-MM-DD"
+    val releaseDate: String?, // "YYYY-MM-DD"
+    val isOwned: Boolean = false
 )

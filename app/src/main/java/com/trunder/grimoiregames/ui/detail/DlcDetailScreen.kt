@@ -7,6 +7,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -145,6 +146,34 @@ fun DlcDetailScreen(
                 }
 
                 Spacer(modifier = Modifier.height(50.dp))
+
+                Row(modifier = Modifier.padding(16.dp)) {
+                    // BOTÓN: LO TENGO
+                    FilterChip(
+                        selected = dlc.isOwned,
+                        onClick = {
+                            viewModel.onDlcOwnershipChanged(game, dlc.name, true)
+                        },
+                        label = { Text("¡LO TENGO!") },
+                        leadingIcon = {
+                            if (dlc.isOwned) Icon(Icons.Default.Check, null)
+                        }
+                    )
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    // BOTÓN: NO LO TENGO
+                    FilterChip(
+                        selected = !dlc.isOwned,
+                        onClick = {
+                            viewModel.onDlcOwnershipChanged(game, dlc.name, false)
+                        },
+                        label = { Text("NO LO TENGO") },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    )
+                }
             }
         }
     }
