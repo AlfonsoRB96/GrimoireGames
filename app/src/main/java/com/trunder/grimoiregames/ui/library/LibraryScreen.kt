@@ -360,7 +360,7 @@ fun LibraryScreen(
                         items(gamesInGroup) { game ->
                             GameCard(
                                 game = game,
-                                onClick = { onGameClick(game.rawgId.toInt()) }, // 🟢 Usamos rawgId porque 'id' no existe en entity
+                                onClick = { onGameClick(game.id) }, // 🟢 Usamos rawgId porque 'id' no existe en entity
                                 onLongClick = { gameToDelete = game }
                             )
                         }

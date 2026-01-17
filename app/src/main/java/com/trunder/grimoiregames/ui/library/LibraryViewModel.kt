@@ -257,6 +257,7 @@ class LibraryViewModel @Inject constructor(
             "Plataforma" -> current.copy(platforms = toggleSet(current.platforms, value))
             "Género" -> current.copy(genres = toggleSet(current.genres, value))
             "Estado" -> current.copy(statuses = toggleSet(current.statuses, value))
+            "Franquicia" -> current.copy(franchises = toggleSet(current.franchises, value))
             "Desarrolladora" -> current.copy(developers = toggleSet(current.developers, value))
             "Distribuidora" -> current.copy(publishers = toggleSet(current.publishers, value))
             "Clasificación por edades" -> current.copy(ageRatings = toggleSet(current.ageRatings, value))
