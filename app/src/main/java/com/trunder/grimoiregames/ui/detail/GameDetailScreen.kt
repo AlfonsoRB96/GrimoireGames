@@ -1,5 +1,6 @@
 package com.trunder.grimoiregames.ui.detail
 
+import android.R.attr.onClick
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
@@ -47,6 +48,7 @@ import androidx.compose.ui.text.style.TextOverflow
 @Composable
 fun GameDetailScreen(
     onBackClick: () -> Unit,
+    onDlcClick: (com.trunder.grimoiregames.data.entity.DlcItem) -> Unit,
     viewModel: GameDetailViewModel = hiltViewModel()
 ) {
     // 1. OBSERVAMOS EL JUEGO DESDE EL VIEWMODEL
@@ -292,7 +294,8 @@ fun GameDetailScreen(
 
                     // 5.5 SECCIÓN DE DLCS (EL TESORO OCULTO)
                     if (!currentSafeGame.dlcs.isNullOrEmpty()) {
-                        DlcListSection(dlcs = currentSafeGame.dlcs)
+                        // 🆕 Pasamos el evento a la lista
+                        DlcListSection(dlcs = currentSafeGame.dlcs, onDlcClick = onDlcClick)
                         HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
                     }
 
@@ -736,10 +739,17 @@ fun getScoreIconRes(source: String): Int {
 // --- COMPONENTES DE DLC ---
 
 @Composable
-fun DlcListSection(dlcs: List<com.trunder.grimoiregames.data.entity.DlcItem>) {
+fun DlcListSection(
+    dlcs: List<com.trunder.grimoiregames.data.entity.DlcItem>,
+    onDlcClick: (com.trunder.grimoiregames.data.entity.DlcItem) -> Unit // 🆕 Recibimos el evento
+) {
+    val sortedDlcs = remember(dlcs) {
+        dlcs.sortedByDescending { it.releaseDate ?: "" }
+    }
+
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
-            text = "DLC's (${dlcs.size})",
+            text = "Contenido Extra (${sortedDlcs.size})",
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.SemiBold
         )
@@ -747,60 +757,73 @@ fun DlcListSection(dlcs: List<com.trunder.grimoiregames.data.entity.DlcItem>) {
 
         LazyRow(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
-            contentPadding = PaddingValues(horizontal = 4.dp) // Un pelín de margen para la sombra
+            contentPadding = PaddingValues(horizontal = 4.dp)
         ) {
-            items(dlcs) { dlc ->
-                DlcCard(dlc)
+            items(sortedDlcs) { dlc ->
+                // 🆕 Pasamos el click a la tarjeta
+                DlcCard(dlc = dlc, onClick = { onDlcClick(dlc) })
             }
         }
     }
 }
 
 @Composable
-fun DlcCard(dlc: com.trunder.grimoiregames.data.entity.DlcItem) {
+fun DlcCard(dlc: com.trunder.grimoiregames.data.entity.DlcItem, onClick: () -> Unit) {
     Card(
         modifier = Modifier
-            .width(140.dp)  // Ancho fijo para uniformidad
-            .height(210.dp), // Altura suficiente para portada + texto
+            .width(120.dp)       // Ancho ajustado
+            .aspectRatio(0.7f)  // Relación de aspecto 2:3 (Típica de carátulas)
+            .clickable { onClick() }, // 👈 ¡EL SENSOR TÁCTIL ACTIVADO!
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
-        Column {
-            // 1. PORTADA DEL DLC
+        Box(modifier = Modifier.fillMaxSize()) {
+            // 1. IMAGEN DE FONDO (Ocupa todo el espacio)
             AsyncImage(
-                model = dlc.coverUrl ?: R.drawable.ic_logo_igdb, // Placeholder si falla
+                model = dlc.coverUrl ?: R.drawable.ic_logo_igdb,
                 contentDescription = dlc.name,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(140.dp) // Imagen cuadrada/rectangular dominante
-                    .background(Color.Black.copy(alpha = 0.2f))
+                modifier = Modifier.fillMaxSize()
             )
 
-            // 2. INFO (Título y Año)
+            // 2. SCRIM / DEGRADADO (Para que el texto se lea bien sobre la imagen)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.BottomCenter)
+                    .height(90.dp) // Altura de la sombra
+                    .background(
+                        brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Transparent,
+                                Color.Black.copy(alpha = 0.9f)
+                            )
+                        )
+                    )
+            )
+
+            // 3. DATOS (Título y Año superpuestos)
             Column(
                 modifier = Modifier
-                    .padding(10.dp)
-                    .fillMaxSize(),
-                verticalArrangement = Arrangement.SpaceBetween
+                    .align(Alignment.BottomStart)
+                    .padding(8.dp)
             ) {
                 Text(
                     text = dlc.name,
                     style = MaterialTheme.typography.labelMedium,
+                    color = Color.White, // Siempre blanco por el fondo oscuro
                     fontWeight = FontWeight.Bold,
-                    maxLines = 2,
+                    maxLines = 3, // Permitimos 3 líneas para nombres largos de DLCs
                     overflow = TextOverflow.Ellipsis,
-                    lineHeight = 14.sp
+                    lineHeight = 12.sp
                 )
 
                 if (!dlc.releaseDate.isNullOrEmpty()) {
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = dlc.releaseDate.take(4), // Solo el año (YYYY)
+                        text = dlc.releaseDate.take(4),
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        color = Color.White.copy(alpha = 0.7f),
                         fontSize = 10.sp
                     )
                 }

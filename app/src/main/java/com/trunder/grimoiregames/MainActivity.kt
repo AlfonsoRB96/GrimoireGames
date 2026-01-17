@@ -12,6 +12,7 @@ import com.trunder.grimoiregames.ui.theme.GrimoireGamesTheme
 import dagger.hilt.android.AndroidEntryPoint
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
+import com.trunder.grimoiregames.ui.detail.DlcDetailScreen
 import com.trunder.grimoiregames.ui.detail.GameDetailScreen
 import com.trunder.grimoiregames.ui.home.HomeScreen
 import com.trunder.grimoiregames.ui.settings.SettingsScreen
@@ -65,11 +66,36 @@ class MainActivity : ComponentActivity() {
                         arguments = listOf(navArgument("gameId") { type = NavType.IntType })
                     ) {
                         GameDetailScreen(
+                            onBackClick = { navController.popBackStack() },
+                            // 🆕 AL PULSAR UN DLC
+                            onDlcClick = { dlc ->
+                                // Codificamos el nombre para que viaje seguro por la URL
+                                val encodedName = android.net.Uri.encode(dlc.name)
+                                // Navegamos a la nueva ruta
+                                // IMPORTANTE: Pasamos gameId para que el nuevo ViewModel sepa qué cargar
+                                val gameId = it.arguments?.getInt("gameId") ?: 0
+                                navController.navigate("dlc_detail/$gameId/$encodedName")
+                            }
+                        )
+                    }
+
+                    // 🆕 RUTA 5: DETALLE DEL DLC
+                    composable(
+                        route = "dlc_detail/{gameId}/{dlcName}",
+                        arguments = listOf(
+                            navArgument("gameId") { type = NavType.IntType },
+                            navArgument("dlcName") { type = NavType.StringType }
+                        )
+                    ) { backStackEntry ->
+                        val dlcName = backStackEntry.arguments?.getString("dlcName") ?: ""
+
+                        DlcDetailScreen(
+                            dlcName = dlcName,
                             onBackClick = { navController.popBackStack() }
                         )
                     }
 
-                    // 5. SETTINGS
+                    // 6. SETTINGS
                     composable("settings") {
                         SettingsScreen(
                             onBackClick = { navController.popBackStack() }

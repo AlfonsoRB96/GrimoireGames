@@ -53,7 +53,12 @@ class AddGameViewModel @Inject constructor(
                 try {
                     // El repository ya se encarga de la magia de IGDB
                     val result = repository.searchGames(query)
-                    searchResults = result
+                    searchResults = result.filterNot { game ->
+                        game.name.contains("Season Pass", ignoreCase = true) ||
+                                game.name.contains("FighterZ Pass", ignoreCase = true) ||
+                                game.name.contains("Expansion Pass", ignoreCase = true) ||
+                                game.name.contains("DLC", ignoreCase = true)
+                    }
 
                 } catch (e: Exception) {
                     e.printStackTrace()
