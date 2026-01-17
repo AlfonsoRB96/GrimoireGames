@@ -142,25 +142,6 @@ fun DlcDetailScreen(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(32.dp))
-
-                    // Nota de Futaba: Como la API no da descripción de DLCs, ponemos un mensaje placeholder
-                    Card(
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                        ),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        PaddingValues(16.dp).let {
-                            Text(
-                                text = "💡 Info: IGDB no proporciona descripciones detalladas para los DLCs individuales, solo datos técnicos básicos.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(16.dp),
-                                textAlign = TextAlign.Center
-                            )
-                        }
-                    }
                 }
 
                 Spacer(modifier = Modifier.height(50.dp))

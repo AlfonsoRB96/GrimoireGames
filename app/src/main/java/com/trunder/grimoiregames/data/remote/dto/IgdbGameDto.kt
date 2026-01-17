@@ -28,7 +28,9 @@ data class IgdbGameDto(
     val dlcs: List<IgdbGameDto>?,
     // Opcional: Si quieres detectar si es un bundle y qué juegos trae
     @SerializedName("collection")
-    val collection: IgdbItemDto?
+    val collection: IgdbItemDto?,
+
+    @SerializedName("version_parent") val versionParent: IgdbGameDto? = null
 )
 
 data class IgdbImageDto(

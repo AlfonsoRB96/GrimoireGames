@@ -7,9 +7,7 @@ import com.trunder.grimoiregames.data.remote.IgdbApi
 import com.trunder.grimoiregames.data.remote.MetacriticScraper
 import com.trunder.grimoiregames.data.remote.OpenCriticScraper
 import com.trunder.grimoiregames.data.remote.TwitchAuthApi
-import com.trunder.grimoiregames.data.remote.dto.AgeRatingCategory
 import com.trunder.grimoiregames.data.remote.dto.AgeRatingDto
-import com.trunder.grimoiregames.data.remote.dto.AgeRatingOrganization
 import com.trunder.grimoiregames.data.remote.dto.IgdbGameDto
 import com.trunder.grimoiregames.util.Constants
 import kotlinx.coroutines.flow.Flow
@@ -45,7 +43,9 @@ class GameRepository @Inject constructor(
     suspend fun searchGames(query: String): List<IgdbGameDto> {
         val token = getValidToken()
         val cleanQuery = query.trim()
-        val bodyString = "search \"$cleanQuery\"; fields name, cover.url, first_release_date, total_rating, genres.name, platforms.name, summary, involved_companies.company.name, involved_companies.developer, involved_companies.publisher, age_ratings, game_type; where game_type = (0, 3, 4, 8, 9, 10, 11); limit 20;"
+        // Nota: En búsqueda simple no traemos toda la herencia profunda para no ralentizar,
+        // solo lo básico por si acaso.
+        val bodyString = "search \"$cleanQuery\"; fields name, cover.url, first_release_date, total_rating, genres.name, platforms.name, summary, involved_companies.company.name, involved_companies.developer, involved_companies.publisher, age_ratings, game_type, parent_game, version_parent.name, version_parent.summary; where game_type = (0, 3, 4, 8, 9, 10, 11); limit 20;"
         val body = bodyString.toRequestBody("text/plain".toMediaTypeOrNull())
         return igdbApi.getGames(Constants.IGDB_CLIENT_ID, token, body)
     }
@@ -56,11 +56,22 @@ class GameRepository @Inject constructor(
         onProgress(0.1f, "Conectando con IGDB...")
         val token = getValidToken()
 
+        // 🟢 UPDATE QUERY: Pedimos companies y DLCs del PADRE (version_parent)
         val bodyString = """
             fields name, cover.url, first_release_date, rating, aggregated_rating, genres.name, platforms.name, summary, involved_companies.company.name, involved_companies.developer, involved_companies.publisher, age_ratings,
-            dlcs.name, dlcs.cover.url, dlcs.first_release_date; 
+            dlcs.name, dlcs.cover.url, dlcs.first_release_date, 
+            game_type, 
+            version_parent.name, 
+            version_parent.summary,
+            version_parent.involved_companies.company.name, 
+            version_parent.involved_companies.developer, 
+            version_parent.involved_companies.publisher,
+            version_parent.dlcs.name, 
+            version_parent.dlcs.cover.url, 
+            version_parent.dlcs.first_release_date; 
             where id = $igdbId;
         """.trimIndent()
+
         val body = bodyString.toRequestBody("text/plain".toMediaTypeOrNull())
 
         try {
@@ -71,7 +82,7 @@ class GameRepository @Inject constructor(
                 return
             }
 
-            // --- FASE 2: FRANCOTIRADOR ---
+            // --- FASE 2: CLASIFICACIÓN DE EDAD ---
             var finalAgeRatings: List<AgeRatingDto>? = null
             if (!details.ageRatings.isNullOrEmpty()) {
                 onProgress(0.3f, "Analizando clasificación de edad...")
@@ -85,11 +96,46 @@ class GameRepository @Inject constructor(
                 }
             }
 
-            onProgress(0.5f, "Hackeando Metacritic...")
-            val scrapeResult = MetacriticScraper.scrapScores(details.name, selectedPlatform)
+            // =================================================================
+            // 🕵️‍♀️ LÓGICA ORACLE: PROTOCOLO DE HERENCIA TOTAL
+            // =================================================================
+            val hasParent = details.versionParent != null
+
+            // 1. Nombre para Scraper (Del Padre)
+            val nameForScraping = if (hasParent) details.versionParent!!.name else details.name
+
+            // 2. Summary Fusionado (Padre + Hijo)
+            val finalSummary = if (hasParent) {
+                val parentSum = details.versionParent?.summary ?: ""
+                val childSum = details.summary ?: ""
+                if (parentSum.isNotBlank()) "$parentSum\n\n🔹 ${details.name}:\n$childSum" else childSum
+            } else {
+                details.summary
+            }
+
+            // 3. 🟢 Developer & Publisher (Heredado del Padre si existe)
+            val companiesSource = if (hasParent && !details.versionParent?.involvedCompanies.isNullOrEmpty()) {
+                details.versionParent.involvedCompanies
+            } else {
+                details.involvedCompanies
+            }
+
+            val developerName = companiesSource?.find { it.developer }?.company?.name ?: "Desconocido"
+            val publisherName = companiesSource?.find { it.publisher }?.company?.name ?: "Desconocido"
+
+            // 4. 🟢 DLCs (Heredado del Padre: mostramos los "hermanos" y el contenido del padre)
+            val dlcsSource = if (hasParent && !details.versionParent?.dlcs.isNullOrEmpty()) {
+                details.versionParent.dlcs
+            } else {
+                details.dlcs
+            }
+            // =================================================================
+
+            onProgress(0.5f, "Hackeando Metacritic ($nameForScraping)...")
+            val scrapeResult = MetacriticScraper.scrapScores(nameForScraping, selectedPlatform)
 
             onProgress(0.7f, "Consultando OpenCritic...")
-            val openCriticScore = OpenCriticScraper.getScore(details.name)
+            val openCriticScore = OpenCriticScraper.getScore(nameForScraping)
 
             onProgress(0.9f, "Guardando en Grimorio...")
             val hdImageUrl = details.cover?.url?.replace("t_thumb", "t_cover_big")?.let { "https:$it" }
@@ -97,7 +143,8 @@ class GameRepository @Inject constructor(
                 SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(it * 1000))
             }
 
-            val dlcList = details.dlcs?.map { dlcDto ->
+            // Mapeamos los DLCs seleccionados (Padre o Propios)
+            val dlcList = dlcsSource?.map { dlcDto ->
                 DlcItem(
                     name = dlcDto.name,
                     coverUrl = dlcDto.cover?.url?.replace("t_thumb", "t_cover_big")?.let { "https:$it" },
@@ -113,7 +160,7 @@ class GameRepository @Inject constructor(
                 platform = selectedPlatform,
                 status = "Backlog",
                 imageUrl = hdImageUrl,
-                description = details.summary,
+                description = finalSummary, // 🟢 Fusionado
                 igdbPress = details.aggregatedRating?.toInt(),
                 igdbUser = details.rating?.toInt(),
                 metacriticPress = scrapeResult.metaScore,
@@ -122,11 +169,11 @@ class GameRepository @Inject constructor(
                 opencriticUser = null,
                 releaseDate = releaseDateStr,
                 genre = details.genres?.firstOrNull()?.name ?: "Desconocido",
-                developer = details.involvedCompanies?.find { it.developer }?.company?.name ?: "Desconocido",
-                publisher = details.involvedCompanies?.find { it.publisher }?.company?.name ?: "Desconocido",
+                developer = developerName, // 🟢 Heredado
+                publisher = publisherName, // 🟢 Heredado
                 region = userRegion,
                 ageRating = resolveAgeRating(finalAgeRatings, userRegion),
-                dlcs = dlcList
+                dlcs = dlcList // 🟢 Heredado
             )
 
             gameDao.insertGame(newGame)
@@ -139,11 +186,23 @@ class GameRepository @Inject constructor(
 
     suspend fun fetchAndSaveGameDetails(game: Game) {
         val token = getValidToken()
+
+        // 🟢 UPDATE QUERY: También aquí pedimos la estructura profunda del padre
         val gameQuery = """
             fields name, cover.url, first_release_date, rating, aggregated_rating, genres.name, platforms.name, summary, involved_companies.company.name, involved_companies.developer, involved_companies.publisher, age_ratings, 
-            dlcs.name, dlcs.cover.url, dlcs.first_release_date; 
+            dlcs.name, dlcs.cover.url, dlcs.first_release_date, 
+            game_type, 
+            version_parent.name, 
+            version_parent.summary,
+            version_parent.involved_companies.company.name, 
+            version_parent.involved_companies.developer, 
+            version_parent.involved_companies.publisher,
+            version_parent.dlcs.name, 
+            version_parent.dlcs.cover.url, 
+            version_parent.dlcs.first_release_date; 
             where id = ${game.rawgId};
         """.trimIndent()
+
         val gameBody = gameQuery.toRequestBody("text/plain".toMediaTypeOrNull())
 
         try {
@@ -158,15 +217,47 @@ class GameRepository @Inject constructor(
                 finalAgeRatings = igdbApi.getAgeRatingDetails(Constants.IGDB_CLIENT_ID, token, ratingBody)
             }
 
-            val scrapeResult = MetacriticScraper.scrapScores(details.name, game.platform)
-            val openCriticScore = OpenCriticScraper.getScore(details.name)
+            // =================================================================
+            // 🕵️‍♀️ LÓGICA ORACLE: PROTOCOLO DE HERENCIA (UPDATE)
+            // =================================================================
+            val hasParent = details.versionParent != null
+
+            val nameForScraping = if (hasParent) details.versionParent!!.name else details.name
+
+            val finalSummary = if (hasParent) {
+                val parentSum = details.versionParent?.summary ?: ""
+                val childSum = details.summary ?: ""
+                if (parentSum.isNotBlank()) "$parentSum\n\n🔹 ${details.name}:\n$childSum" else childSum
+            } else {
+                details.summary
+            }
+
+            // 🟢 Heredar Companies
+            val companiesSource = if (hasParent && !details.versionParent?.involvedCompanies.isNullOrEmpty()) {
+                details.versionParent!!.involvedCompanies
+            } else {
+                details.involvedCompanies
+            }
+            val developerName = companiesSource?.find { it.developer }?.company?.name ?: "Desconocido"
+            val publisherName = companiesSource?.find { it.publisher }?.company?.name ?: "Desconocido"
+
+            // 🟢 Heredar DLCs
+            val dlcsSource = if (hasParent && !details.versionParent?.dlcs.isNullOrEmpty()) {
+                details.versionParent!!.dlcs
+            } else {
+                details.dlcs
+            }
+            // =================================================================
+
+            val scrapeResult = MetacriticScraper.scrapScores(nameForScraping, game.platform)
+            val openCriticScore = OpenCriticScraper.getScore(nameForScraping)
 
             val hdImageUrl = details.cover?.url?.replace("t_thumb", "t_cover_big")?.let { "https:$it" }
             val releaseDateStr = details.firstReleaseDate?.let {
                 SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(it * 1000))
             }
 
-            val dlcList = details.dlcs?.map { dlcDto ->
+            val dlcList = dlcsSource?.map { dlcDto ->
                 DlcItem(
                     name = dlcDto.name,
                     coverUrl = dlcDto.cover?.url?.replace("t_thumb", "t_cover_big")?.let { "https:$it" },
@@ -177,7 +268,7 @@ class GameRepository @Inject constructor(
             }
 
             val updatedGame = game.copy(
-                description = details.summary,
+                description = finalSummary,
                 igdbPress = details.aggregatedRating?.toInt(),
                 igdbUser = details.rating?.toInt(),
                 metacriticPress = scrapeResult.metaScore,
@@ -185,11 +276,11 @@ class GameRepository @Inject constructor(
                 opencriticPress = openCriticScore,
                 releaseDate = releaseDateStr,
                 genre = details.genres?.firstOrNull()?.name ?: "Desconocido",
-                developer = details.involvedCompanies?.find { it.developer }?.company?.name ?: "Desconocido",
-                publisher = details.involvedCompanies?.find { it.publisher }?.company?.name ?: "Desconocido",
+                developer = developerName, // 🟢 Update Heredado
+                publisher = publisherName, // 🟢 Update Heredado
                 ageRating = resolveAgeRating(finalAgeRatings, game.region),
                 imageUrl = hdImageUrl ?: game.imageUrl,
-                dlcs = dlcList
+                dlcs = dlcList // 🟢 Update Heredado
             )
 
             gameDao.updateGame(updatedGame)
@@ -219,25 +310,21 @@ class GameRepository @Inject constructor(
     }
 
     // ============================================================================================
-    // 🧠 LOGICA "DECODER" DE ORACLE (FIX PARA BUG DE IGDB)
+    // 🧠 LOGICA DE CLASIFICACIÓN (SIN CAMBIOS AQUÍ)
     // ============================================================================================
 
     private fun resolveAgeRating(ratings: List<AgeRatingDto>?, targetRegion: String): String? {
         if (ratings.isNullOrEmpty()) return null
 
-        // 🕵️‍♀️ 1. ESTRATEGIA: IGNORAR ESRB (Org 1) y CENTRARNOS EN PEGI (Org 2)
         val pegiSource = ratings.find { it.organizationId == 2 }
 
         if (pegiSource != null) {
-            // 🔧 CORRECCIÓN AQUÍ: Usamos .ratingId en vez de .ratingCategory
             val ratingId = pegiSource.ratingId ?: -1
-
-            // ⚠️ DETECTOR DE ANOMALÍA
             val isEsrbDisguised = ratingId in 6..12
 
             if (isEsrbDisguised) {
                 if (targetRegion == "NTSC-U") {
-                    val fakeDto = AgeRatingDto(organizationId = 1, ratingId = ratingId) // Corrección en constructor
+                    val fakeDto = AgeRatingDto(organizationId = 1, ratingId = ratingId)
                     return mapRatingToString(fakeDto)
                 }
                 else if (targetRegion == "PAL" || targetRegion == "PAL EU") {
@@ -250,7 +337,6 @@ class GameRepository @Inject constructor(
             }
         }
 
-        // --- 2. FALLBACK ESTÁNDAR ---
         val targetOrgId = when (targetRegion) {
             "NTSC-U" -> 1
             "PAL EU", "PAL" -> 2
@@ -281,7 +367,6 @@ class GameRepository @Inject constructor(
 
     private fun mapRatingToString(dto: AgeRatingDto): String {
         val orgId = dto.organization?.id ?: dto.organizationId ?: -1
-        // 🔧 CORRECCIÓN AQUÍ TAMBIÉN: .ratingId
         val ratingValue = dto.rating?.id ?: dto.ratingId ?: -1
 
         if (ratingValue == -1) return "UNK"
